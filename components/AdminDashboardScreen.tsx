@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import type { User, AssignedShift } from '../types';
-import { LogoutIcon, UsersIcon, ClipboardListIcon, TrashIcon } from './icons';
+import { LogoutIcon, UsersIcon, ClipboardListIcon, TrashIcon, ClockIcon } from './icons';
 import { ShiftPlanner } from './ShiftPlanner';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { LiveWorkersPanel } from './LiveWorkersPanel';
 
 interface AdminDashboardScreenProps {
     adminUser: User;
@@ -29,7 +30,7 @@ const SidebarItem: React.FC<{ icon: React.ReactNode; label: string; active?: boo
 
 export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ adminUser, allUsers, onSelectUser, onLogout, assignedShifts, onSaveShifts, onDeleteUser }) => {
 
-    const [activeTab, setActiveTab] = useState<'users' | 'planner'>('users');
+    const [activeTab, setActiveTab] = useState<'live' | 'users' | 'planner'>('live');
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
     const regularUsers = allUsers.filter(u => !u.isAdmin);
 
@@ -57,6 +58,12 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ admi
                 </div>
 
                 <nav className="flex-1 space-y-2">
+                    <SidebarItem
+                        icon={<ClockIcon className="w-5 h-5" />}
+                        label="Live"
+                        active={activeTab === 'live'}
+                        onClick={() => setActiveTab('live')}
+                    />
                     <SidebarItem
                         icon={<UsersIcon className="w-5 h-5" />}
                         label="Gestione Utenti"
@@ -115,6 +122,12 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ admi
                     {/* Mobile Tabs */}
                     <div className="lg:hidden flex mb-6 bg-slate-800/50 p-1 rounded-xl">
                         <button
+                            onClick={() => setActiveTab('live')}
+                            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'live' ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-400'}`}
+                        >
+                            Live
+                        </button>
+                        <button
                             onClick={() => setActiveTab('users')}
                             className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'users' ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-400'}`}
                         >
@@ -124,9 +137,15 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ admi
                             onClick={() => setActiveTab('planner')}
                             className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'planner' ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-400'}`}
                         >
-                            Pianificazione
+                            Turni
                         </button>
                     </div>
+
+                    {activeTab === 'live' && (
+                        <div className="glass-panel p-6 rounded-3xl shadow-lg">
+                            <LiveWorkersPanel allUsers={regularUsers} />
+                        </div>
+                    )}
 
                     {activeTab === 'users' && (
                         <div className="glass-panel p-6 rounded-3xl shadow-lg">
