@@ -19,15 +19,16 @@ export default defineConfig({
         theme_color: '#1f2937',
         background_color: '#111827',
         display: 'standalone',
-        start_url: '/',
+        start_url: '/app-timbrature-zerosei/',
+        scope: '/app-timbrature-zerosei/',
         icons: [
           {
-            src: '/icons/icon-192.svg',
+            src: '/app-timbrature-zerosei/icons/icon-192.svg',
             sizes: '192x192',
             type: 'image/svg+xml'
           },
           {
-            src: '/icons/icon-512.svg',
+            src: '/app-timbrature-zerosei/icons/icon-512.svg',
             sizes: '512x512',
             type: 'image/svg+xml'
           }

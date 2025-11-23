@@ -24,6 +24,7 @@ const App: React.FC = () => {
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
     const [loginError, setLoginError] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [rememberedCredentials, setRememberedCredentials] = useState<{ name: string, surname: string, password?: string } | null>(null);
     const [isInitialized, setIsInitialized] = useState(false);
 
@@ -138,6 +139,7 @@ const App: React.FC = () => {
         const nameExists = users.some(u => (`${u.name} ${u.surname}`).toLowerCase() === fullName.toLowerCase());
         if (nameExists) {
             setLoginError("Questo utente è già registrato.");
+            setSuccessMessage(null);
             return;
         }
 
@@ -150,7 +152,11 @@ const App: React.FC = () => {
 
         setUsers(prev => [...prev, newUser]);
         setLoginError(null);
+        setSuccessMessage(`Registrazione completata! Benvenuto ${name}, ora puoi effettuare il login.`);
         setAuthMode('login');
+
+        // Clear success message after 5 seconds
+        setTimeout(() => setSuccessMessage(null), 5000);
     }, [users]);
 
 
@@ -251,14 +257,15 @@ const App: React.FC = () => {
         if (authMode === 'login') {
             return <LoginScreen
                 onLogin={handleLogin}
-                onSwitchToRegister={() => { setAuthMode('register'); setLoginError(null); }}
+                onSwitchToRegister={() => { setAuthMode('register'); setLoginError(null); setSuccessMessage(null); }}
                 error={loginError}
+                successMessage={successMessage}
                 rememberedCredentials={rememberedCredentials}
             />;
         }
         return <RegistrationScreen
             onRegister={handleRegister}
-            onSwitchToLogin={() => { setAuthMode('login'); setLoginError(null); }}
+            onSwitchToLogin={() => { setAuthMode('login'); setLoginError(null); setSuccessMessage(null); }}
             error={loginError}
         />;
     }

@@ -5,6 +5,7 @@ interface LoginScreenProps {
     onLogin: (name: string, surname: string, password: string, rememberMe: boolean) => void;
     onSwitchToRegister: () => void;
     error: string | null;
+    successMessage?: string | null;
     rememberedCredentials: { name: string; surname: string; password?: string; } | null;
 }
 
@@ -12,6 +13,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     onLogin,
     onSwitchToRegister,
     error,
+    successMessage,
     rememberedCredentials,
 }) => {
     const [name, setName] = useState('');
@@ -101,6 +103,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                             <span className="ml-2">Ricorda dati di accesso</span>
                         </label>
                     </div>
+                    {successMessage && (
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 animate-fade-in">
+                            <p className="text-emerald-400 text-sm text-center font-medium">{successMessage}</p>
+                        </div>
+                    )}
                     {error && (
                         <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
                             <p className="text-red-400 text-sm text-center">{error}</p>
