@@ -45,7 +45,21 @@ export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = ({ allUsers }) 
 
         // Aggiorna ogni 5 secondi per rilevare nuovi turni
         const interval = setInterval(updateActiveWorkers, 5000);
-        return () => clearInterval(interval);
+
+        // Ascolta cambiamenti localStorage da altre tab/finestre
+        const handleStorageChange = (e: StorageEvent) => {
+            // Se cambia un activeShift, aggiorna immediatamente
+            if (e.key && e.key.startsWith('activeShift_')) {
+                updateActiveWorkers();
+            }
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('storage', handleStorageChange);
+        };
     }, [allUsers]);
 
     // Aggiorna tempo corrente ogni secondo per durata real-time
