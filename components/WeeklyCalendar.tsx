@@ -38,7 +38,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ shifts, assigned
     }, [currentWeekStart]);
 
     return (
-        <div className="bg-gray-800 p-6 rounded-2xl shadow-lg overflow-x-auto">
+        <div className="bg-gray-800 p-6 rounded-2xl shadow-lg">
             <div className="flex items-center justify-between mb-6">
                 <button onClick={() => changeWeek(-1)} className="p-2 rounded-full hover:bg-gray-700 transition">
                     <ChevronLeftIcon />
@@ -54,81 +54,90 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ shifts, assigned
                 </button>
             </div>
 
-            <div className="min-w-[800px]">
-                {/* Header Row */}
-                <div className="grid grid-cols-[200px_repeat(7,1fr)] gap-2 mb-4">
-                    <div className="font-bold text-slate-400 self-end pb-2">Dipendente</div>
-                    {weekDates.map((date, i) => {
-                        const isToday = new Date().toDateString() === date.toDateString();
-                        return (
-                            <div key={i} className={`text-center p-2 rounded-lg ${isToday ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-300'}`}>
-                                <div className="font-bold">{WEEK_DAYS[i]}</div>
-                                <div className="text-sm opacity-75">{date.getDate()}</div>
+            <div className="space-y-4">
+                {weekDates.map((date, i) => {
+                    const isToday = new Date().toDateString() === date.toDateString();
+                    const dateKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+
+                    // Find all users working this day (either actual or assigned)
+                    const workingUsers = users.map(user => {
+                        // 1. Find Actual Shift
+                        const actualShift = shifts.find(s => {
+                            if (s.userId !== user.id) return false;
+                            const shiftDate = new Date(s.startTime);
+                            return shiftDate.getDate() === date.getDate() &&
+                                shiftDate.getMonth() === date.getMonth() &&
+                                shiftDate.getFullYear() === date.getFullYear();
+                        });
+
+                        // 2. Find Assigned Shift
+                        const assignedShift = assignedShifts.find(s => s.userId === user.id && s.date === dateKey);
+
+                        if (!actualShift && !assignedShift) return null;
+
+                        return {
+                            user,
+                            actualShift,
+                            assignedShift
+                        };
+                    }).filter((item): item is NonNullable<typeof item> => item !== null);
+
+                    return (
+                        <div key={i} className={`p-4 rounded-xl border ${isToday ? 'bg-slate-700/50 border-blue-500/50' : 'bg-slate-800/50 border-slate-700'}`}>
+                            <div className="flex items-center gap-2 mb-3">
+                                <span className={`text-lg font-bold capitalize ${isToday ? 'text-blue-400' : 'text-slate-200'}`}>
+                                    {WEEK_DAYS[i]}
+                                </span>
+                                <span className="text-slate-400 text-sm">
+                                    {date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })}
+                                </span>
                             </div>
-                        );
-                    })}
-                </div>
 
-                {/* User Rows */}
-                <div className="space-y-2">
-                    {users.map(user => (
-                        <div key={user.id} className="grid grid-cols-[200px_repeat(7,1fr)] gap-2 items-center hover:bg-slate-700/30 p-2 rounded-xl transition-colors">
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white border border-slate-600">
-                                    {user.name.charAt(0)}{user.surname.charAt(0)}
-                                </div>
-                                <span className="font-medium text-slate-200 truncate">{user.name} {user.surname}</span>
-                            </div>
-                            {weekDates.map((date, i) => {
-                                // 1. Find Actual Shift (Worked)
-                                const actualShift = shifts.find(s => {
-                                    if (s.userId !== user.id) return false;
-                                    const shiftDate = new Date(s.startTime);
-                                    return shiftDate.getDate() === date.getDate() &&
-                                        shiftDate.getMonth() === date.getMonth() &&
-                                        shiftDate.getFullYear() === date.getFullYear();
-                                });
+                            {workingUsers.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                    {workingUsers.map(({ user, actualShift, assignedShift }) => {
+                                        let content = null;
+                                        let styleClass = "";
 
-                                // 2. Find Assigned Shift (Planned)
-                                const dateKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-                                const assignedShift = assignedShifts.find(s => s.userId === user.id && s.date === dateKey);
+                                        if (actualShift) {
+                                            content = (
+                                                <>
+                                                    {formatTime(new Date(actualShift.startTime))} - {actualShift.endTime ? formatTime(new Date(actualShift.endTime)) : '...'}
+                                                </>
+                                            );
+                                            styleClass = "bg-indigo-500/20 border-indigo-500/30 text-indigo-200";
+                                        } else if (assignedShift) {
+                                            content = (
+                                                <>
+                                                    {assignedShift.startTime}
+                                                </>
+                                            );
+                                            styleClass = "bg-slate-600/20 border-slate-600/30 text-slate-300 border-dashed";
+                                        }
 
-                                // 3. Determine what to show
-                                // Priority: Actual Shift > Assigned Shift
-                                let content = null;
-                                let styleClass = "";
-
-                                if (actualShift) {
-                                    content = (
-                                        <>
-                                            {formatTime(new Date(actualShift.startTime))} - {actualShift.endTime ? formatTime(new Date(actualShift.endTime)) : '...'}
-                                        </>
-                                    );
-                                    styleClass = "bg-indigo-500/20 border border-indigo-500/30 text-indigo-200";
-                                } else if (assignedShift) {
-                                    content = (
-                                        <>
-                                            {assignedShift.startTime}
-                                        </>
-                                    );
-                                    styleClass = "bg-slate-600/20 border border-slate-600/30 text-slate-300 border-dashed";
-                                }
-
-                                return (
-                                    <div key={i} className="h-12 flex items-center justify-center">
-                                        {content ? (
-                                            <div className={`text-xs font-bold px-2 py-1 rounded-lg whitespace-nowrap ${styleClass}`}>
-                                                {content}
+                                        return (
+                                            <div key={user.id} className={`flex items-center justify-between p-2 rounded-lg border ${styleClass}`}>
+                                                <div className="flex items-center gap-2 overflow-hidden">
+                                                    <div className="w-6 h-6 rounded-full bg-slate-700 flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white border border-slate-600">
+                                                        {user.name.charAt(0)}{user.surname.charAt(0)}
+                                                    </div>
+                                                    <span className="font-medium truncate text-sm">{user.name} {user.surname}</span>
+                                                </div>
+                                                <div className="text-xs font-bold ml-2 whitespace-nowrap">
+                                                    {content}
+                                                </div>
                                             </div>
-                                        ) : (
-                                            <div className="w-1 h-1 rounded-full bg-slate-800"></div>
-                                        )}
-                                    </div>
-                                );
-                            })}
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="text-slate-500 text-sm italic py-2">
+                                    Nessun turno programmato
+                                </div>
+                            )}
                         </div>
-                    ))}
-                </div>
+                    );
+                })}
             </div>
         </div>
     );
