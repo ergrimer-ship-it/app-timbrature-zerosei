@@ -39,7 +39,23 @@ const App: React.FC = () => {
 
     // Load users from Firestore on mount and listen to auth state changes
     useEffect(() => {
-        const unsubAuth = subscribeAuth(setUser);
+        const unsubAuth = subscribeAuth((u) => {
+            setUser(u);
+            if (u) {
+                if (u.isAdmin) {
+                    setViewMode('live');
+                } else {
+                    // Ensure users start at dashboard (Timbratrice) or keep current if navigating?
+                    // For initial load, dashboard is fine.
+                    // If we want to persist the last view, we'd need more logic, but for now let's fix the Admin issue.
+                    // We only force 'live' for admin if they are currently on 'dashboard' (default) to avoid overriding navigation if we were to add persistence later.
+                    // But since this runs on mount/auth change, setting it here is safer for the "initial load" case.
+                    // However, if I navigate, does this fire? No, subscribeAuth fires on Firebase auth state change.
+                    // So this is correct for page load / login.
+                    setViewMode(prev => prev === 'dashboard' ? 'dashboard' : prev);
+                }
+            }
+        });
         loadUsers();
         return () => {
             unsubAuth();
@@ -68,7 +84,7 @@ const App: React.FC = () => {
             if (user.isAdmin) {
                 setViewMode('live');
             } else {
-                setViewMode('globalShifts');
+                setViewMode('dashboard');
                 // Load shifts from Firestore
                 const userShifts = await getShifts(user.id);
                 setShifts(userShifts);
