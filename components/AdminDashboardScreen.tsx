@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { User } from '../types';
-import { UsersIcon, TrashIcon } from './icons';
+import { UsersIcon, TrashIcon, EyeIcon, EyeOffIcon } from './icons';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface AdminDashboardScreenProps {
@@ -11,6 +11,7 @@ interface AdminDashboardScreenProps {
 
 export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ allUsers, onSelectUser, onDeleteUser }) => {
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
+    const [visiblePasswordUserId, setVisiblePasswordUserId] = useState<string | null>(null);
     const regularUsers = allUsers.filter(u => !u.isAdmin);
 
     const handleDeleteClick = (user: User, event: React.MouseEvent) => {
@@ -51,6 +52,25 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ allU
                                     <div>
                                         <span className="font-bold text-slate-200 block">{user.name} {user.surname}</span>
                                         <span className="text-xs text-indigo-400 group-hover:text-indigo-300 transition-colors">Visualizza Calendario</span>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-xs text-slate-500">
+                                                {visiblePasswordUserId === user.id ? (
+                                                    <span className="text-emerald-400 font-mono">{user.password}</span>
+                                                ) : (
+                                                    '••••••••'
+                                                )}
+                                            </span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setVisiblePasswordUserId(visiblePasswordUserId === user.id ? null : user.id);
+                                                }}
+                                                className="text-slate-500 hover:text-white transition-colors"
+                                                title={visiblePasswordUserId === user.id ? "Nascondi password" : "Mostra password"}
+                                            >
+                                                {visiblePasswordUserId === user.id ? <EyeOffIcon className="w-3 h-3" /> : <EyeIcon className="w-3 h-3" />}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                                 <button
