@@ -3,6 +3,7 @@ export interface User {
   id: string;
   name: string; // First Name
   surname: string; // Last Name
+  email: string;
   password?: string;
   // fix: Added optional isAdmin property for admin user checks
   isAdmin?: boolean;

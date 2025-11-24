@@ -5,12 +5,15 @@ import { DashboardScreen } from './components/DashboardScreen';
 import { RegistrationScreen } from './components/RegistrationScreen';
 import { AdminDashboardScreen } from './components/AdminDashboardScreen';
 import { UserDetailScreen } from './components/UserDetailScreen';
+import { LiveWorkersPanel } from './components/LiveWorkersPanel';
+import { ProfileScreen } from './components/ProfileScreen';
+import { GlobalShiftsScreen } from './components/GlobalShiftsScreen';
+import { ShiftPlannerScreen } from './components/ShiftPlannerScreen';
+import { Layout } from './components/Layout';
 
-// Mock user database with admin flag
-const MOCK_USERS_WITH_PASSWORDS: User[] = [
-    { id: '1', name: 'Andrea', surname: 'Grimaldi', password: '2marzo2021', isAdmin: true },
-    { id: '2', name: 'Laura', surname: 'Bianchi', password: 'password123' },
-];
+// Firebase services
+import { login, register, subscribeAuth, logout } from './authService';
+import { getAllUsers, getShifts, addShift, deleteShift, setActiveShift as setActiveShiftDb, clearActiveShift as clearActiveShiftDb } from './services/dbService';
 
 const App: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
@@ -20,7 +23,7 @@ const App: React.FC = () => {
     const [activeShift, setActiveShift] = useState<Shift | null>(null);
     const [assignedShifts, setAssignedShifts] = useState<AssignedShift[]>([]);
 
-    const [viewMode, setViewMode] = useState<'dashboard' | 'admin' | 'userDetail'>('dashboard');
+    const [viewMode, setViewMode] = useState<string>('dashboard');
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
     const [loginError, setLoginError] = useState<string | null>(null);
@@ -28,137 +31,76 @@ const App: React.FC = () => {
     const [rememberedCredentials, setRememberedCredentials] = useState<{ name: string, surname: string, password?: string } | null>(null);
     const [isInitialized, setIsInitialized] = useState(false);
 
-    // Load state from localStorage on initial mount with robust parsing
+    // Function to load all users from Firestore
+    const loadUsers = useCallback(async () => {
+        const all = await getAllUsers();
+        setUsers(all);
+    }, []);
+
+    // Load users from Firestore on mount and listen to auth state changes
     useEffect(() => {
-        const safeParse = <T,>(key: string, defaultValue: T): T => {
-            try {
-                const item = localStorage.getItem(key);
-                return item ? JSON.parse(item) as T : defaultValue;
-            } catch (error) {
-                console.error(`Failed to parse ${key} from localStorage`, error);
-                return defaultValue;
-            }
+        const unsubAuth = subscribeAuth(setUser);
+        loadUsers();
+        return () => {
+            unsubAuth();
         };
+    }, [loadUsers]);
 
-        // Load user database robustly
-        const initialUsers = safeParse<User[]>('users', []);
-        const usersToSet = initialUsers.length === 0 ? MOCK_USERS_WITH_PASSWORDS : initialUsers;
-        setUsers(usersToSet);
-
-        // Load other data robustly
-        setAssignedShifts(safeParse<AssignedShift[]>('assignedShifts', []));
-        setRememberedCredentials(safeParse<{ name: string, surname: string, password?: string } | null>('rememberedCredentials', null));
-
-        const storedUser = safeParse<User | null>('user', null);
-        if (storedUser) {
-            const userExists = usersToSet.find(u => u.id === storedUser.id);
-            if (userExists) {
-                const currentUserData = { ...userExists, ...storedUser };
-                setUser(currentUserData);
-                if (currentUserData.isAdmin) {
-                    setViewMode('admin');
-                } else {
-                    setShifts(safeParse<Shift[]>(`shifts_${currentUserData.id}`, []));
-                    setActiveShift(safeParse<Shift | null>(`activeShift_${currentUserData.id}`, null));
-                }
-            } else {
-                localStorage.removeItem('user');
+    // Load remembered credentials for login convenience
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem('rememberedCredentials');
+            if (stored) {
+                setRememberedCredentials(JSON.parse(stored));
             }
+        } catch (error) {
+            console.error('Failed to load remembered credentials', error);
         }
         setIsInitialized(true);
     }, []);
 
-    // Effect to save global data (users, assignedShifts)
-    useEffect(() => {
-        if (!isInitialized) return;
+    const handleLogin = useCallback(async (name: string, surname: string, password: string, rememberMe: boolean) => {
         try {
-            localStorage.setItem('users', JSON.stringify(users));
-            localStorage.setItem('assignedShifts', JSON.stringify(assignedShifts));
-        } catch (e) { console.error("Failed to save global data", e); }
-    }, [users, assignedShifts, isInitialized]);
-
-    // Effect to save user-specific session and shift data
-    useEffect(() => {
-        if (!isInitialized) return;
-        try {
-            if (user) {
-                localStorage.setItem('user', JSON.stringify(user));
-                if (!user.isAdmin) {
-                    localStorage.setItem(`shifts_${user.id}`, JSON.stringify(shifts));
-                    if (activeShift) {
-                        localStorage.setItem(`activeShift_${user.id}`, JSON.stringify(activeShift));
-                    } else {
-                        localStorage.removeItem(`activeShift_${user.id}`);
-                    }
-                }
-            } else {
-                localStorage.removeItem('user');
-            }
-        } catch (error) {
-            console.error("Failed to save session state", error);
-        }
-    }, [user, shifts, activeShift, isInitialized]);
-
-
-    const handleLogin = useCallback((name: string, surname: string, password: string, rememberMe: boolean) => {
-        const foundUser = users.find(u =>
-            u.name.toLowerCase() === name.toLowerCase() &&
-            u.surname.toLowerCase() === surname.toLowerCase() &&
-            u.password === password
-        );
-
-        if (foundUser) {
-            setUser(foundUser);
+            const user = await login(name, surname, password);
+            setUser(user);
             setLoginError(null);
 
-            if (foundUser.isAdmin) {
-                setViewMode('admin');
+            if (user.isAdmin) {
+                setViewMode('live');
             } else {
-                setViewMode('dashboard');
-                const storedShifts = localStorage.getItem(`shifts_${foundUser.id}`);
-                const storedActiveShift = localStorage.getItem(`activeShift_${foundUser.id}`);
-                setShifts(storedShifts ? JSON.parse(storedShifts) : []);
-                setActiveShift(storedActiveShift ? JSON.parse(storedActiveShift) : null);
+                setViewMode('globalShifts');
+                // Load shifts from Firestore
+                const userShifts = await getShifts(user.id);
+                setShifts(userShifts);
+                // Active shift will be listened to by LiveWorkersPanel; set to null initially
+                setActiveShift(null);
             }
 
             if (rememberMe) {
-                const credentials = { name: foundUser.name, surname: foundUser.surname, password: foundUser.password };
+                const credentials = { name: user.name, surname: user.surname, password: user.password };
                 localStorage.setItem('rememberedCredentials', JSON.stringify(credentials));
                 setRememberedCredentials(credentials);
             } else {
                 localStorage.removeItem('rememberedCredentials');
                 setRememberedCredentials(null);
             }
-        } else {
+        } catch (e) {
             setLoginError("Nome, cognome o password non corretti.");
         }
-    }, [users]);
+    }, []);
 
-    const handleRegister = useCallback((name: string, surname: string, password: string) => {
-        const fullName = `${name} ${surname}`;
-        const nameExists = users.some(u => (`${u.name} ${u.surname}`).toLowerCase() === fullName.toLowerCase());
-        if (nameExists) {
-            setLoginError("Questo utente è già registrato.");
-            setSuccessMessage(null);
-            return;
+    const handleRegister = useCallback(async (name: string, surname: string, password: string) => {
+        try {
+            await register(name, surname, password, false);
+            await logout(); // Logout immediately to show success message
+            await loadUsers(); // Refresh user list
+            setSuccessMessage("Registrazione completata! Effettua il login.");
+            setLoginError(null);
+            setAuthMode('login');
+        } catch (e: any) {
+            setLoginError(e.message || "Errore durante la registrazione.");
         }
-
-        const newUser: User = {
-            id: `user_${Date.now()}`,
-            name,
-            surname,
-            password,
-        };
-
-        setUsers(prev => [...prev, newUser]);
-        setLoginError(null);
-        setSuccessMessage(`Registrazione completata! Benvenuto ${name}, ora puoi effettuare il login.`);
-        setAuthMode('login');
-
-        // Clear success message after 5 seconds
-        setTimeout(() => setSuccessMessage(null), 5000);
-    }, [users]);
-
+    }, [loadUsers]);
 
     const handleLogout = useCallback(() => {
         setUser(null);
@@ -167,14 +109,17 @@ const App: React.FC = () => {
         setSelectedUser(null);
         setLoginError(null);
         setViewMode('dashboard');
-        localStorage.removeItem('user');
     }, []);
 
-    const handleClock = useCallback((tags: Shift['tags']) => {
+    const handleClock = useCallback(async (tags: Shift['tags']) => {
+        if (!user) return;
+
         const now = new Date();
         if (activeShift) {
             // Clocking OUT
             const completedShift: Shift = { ...activeShift, endTime: now.toISOString() };
+            await addShift(user.id, completedShift);
+            await clearActiveShiftDb(user.id);
             setShifts(prev => [...prev, completedShift]);
             setActiveShift(null);
         } else {
@@ -185,14 +130,15 @@ const App: React.FC = () => {
                 endTime: null,
                 tags: tags,
             };
+            await setActiveShiftDb(user.id, newShift);
             setActiveShift(newShift);
         }
-    }, [activeShift]);
+    }, [activeShift, user]);
 
     // Admin functions
-    const handleSelectUser = (userToView: User) => {
-        const storedShifts = localStorage.getItem(`shifts_${userToView.id}`);
-        setShifts(storedShifts ? JSON.parse(storedShifts) : []);
+    const handleSelectUser = async (userToView: User) => {
+        const userShifts = await getShifts(userToView.id);
+        setShifts(userShifts);
         setSelectedUser(userToView);
         setViewMode('userDetail');
     };
@@ -200,11 +146,7 @@ const App: React.FC = () => {
     const handleBackToAdmin = () => {
         setSelectedUser(null);
         setShifts([]);
-        setViewMode('admin');
-    };
-
-    const handleSaveShifts = (newShifts: AssignedShift[]) => {
-        setAssignedShifts(newShifts);
+        setViewMode('users');
     };
 
     const handleDeleteUser = useCallback((userIdToDelete: string) => {
@@ -214,94 +156,124 @@ const App: React.FC = () => {
         // Remove their assigned shifts
         setAssignedShifts((prevAssigned: AssignedShift[]) => prevAssigned.filter((s: AssignedShift) => s.userId !== userIdToDelete));
 
-        // Clear their individual data from localStorage to prevent orphaned data
-        localStorage.removeItem(`shifts_${userIdToDelete}`);
-        localStorage.removeItem(`activeShift_${userIdToDelete}`);
+        // Note: User data in Firestore should be deleted via admin panel in future
     }, []);
 
-    const handleUpdateShift = useCallback((userId: string, updatedShift: Shift) => {
-        const storageKey = `shifts_${userId}`;
-        const storedShiftsRaw = localStorage.getItem(storageKey);
-        const userShifts: Shift[] = storedShiftsRaw ? JSON.parse(storedShiftsRaw) : [];
-
-        const updatedShifts = userShifts.map((s: Shift) => s.id === updatedShift.id ? updatedShift : s);
-
-        localStorage.setItem(storageKey, JSON.stringify(updatedShifts));
+    const handleUpdateShift = useCallback(async (userId: string, updatedShift: Shift) => {
+        // Update shift in Firestore
+        await addShift(userId, updatedShift);
 
         // If we are viewing this user, update the state to reflect changes
         if (selectedUser?.id === userId) {
-            setShifts(updatedShifts);
+            const userShifts = await getShifts(userId);
+            setShifts(userShifts);
         }
     }, [selectedUser]);
 
-    const handleDeleteShift = useCallback((userId: string, shiftId: string) => {
-        const storageKey = `shifts_${userId}`;
-        const storedShiftsRaw = localStorage.getItem(storageKey);
-        const userShifts: Shift[] = storedShiftsRaw ? JSON.parse(storedShiftsRaw) : [];
+    const handleDeleteShift = useCallback(async (userId: string, shiftId: string) => {
+        try {
+            await deleteShift(userId, shiftId);
 
-        const updatedShifts = userShifts.filter((s: Shift) => s.id !== shiftId);
-
-        localStorage.setItem(storageKey, JSON.stringify(updatedShifts));
-
-        if (selectedUser?.id === userId) {
-            setShifts(updatedShifts);
+            // Update local state if we are viewing this user
+            if (selectedUser?.id === userId) {
+                const userShifts = await getShifts(userId);
+                setShifts(userShifts);
+            }
+        } catch (error) {
+            console.error("Failed to delete shift:", error);
+            alert("Errore durante l'eliminazione del turno.");
         }
     }, [selectedUser]);
 
 
     if (!isInitialized) {
-        return <div className="min-h-screen flex items-center justify-center"><p className="text-lg font-medium animate-pulse">Caricamento...</p></div>;
+        return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white"><p className="text-lg font-medium animate-pulse">Caricamento...</p></div>;
     }
 
-    if (!user) {
-        if (authMode === 'login') {
-            return <LoginScreen
-                onLogin={handleLogin}
-                onSwitchToRegister={() => { setAuthMode('register'); setLoginError(null); setSuccessMessage(null); }}
-                error={loginError}
-                successMessage={successMessage}
-                rememberedCredentials={rememberedCredentials}
-            />;
+    const renderContent = () => {
+        if (!user) {
+            return authMode === 'login' ? (
+                <LoginScreen
+                    onLogin={handleLogin}
+                    onSwitchToRegister={() => { setAuthMode('register'); setLoginError(null); setSuccessMessage(null); }}
+                    error={loginError}
+                    successMessage={successMessage}
+                    rememberedCredentials={rememberedCredentials}
+                />
+            ) : (
+                <RegistrationScreen
+                    onRegister={handleRegister}
+                    onSwitchToLogin={() => { setAuthMode('login'); setLoginError(null); setSuccessMessage(null); }}
+                    error={loginError}
+                />
+            );
         }
-        return <RegistrationScreen
-            onRegister={handleRegister}
-            onSwitchToLogin={() => { setAuthMode('login'); setLoginError(null); setSuccessMessage(null); }}
-            error={loginError}
-        />;
-    }
 
-    if (user.isAdmin) {
-        if (viewMode === 'userDetail' && selectedUser) {
-            return <UserDetailScreen
-                selectedUser={selectedUser}
-                userShifts={shifts}
-                onBack={handleBackToAdmin}
-                onUpdateShift={(updatedShift) => handleUpdateShift(selectedUser.id, updatedShift)}
-                onDeleteShift={(shiftId) => handleDeleteShift(selectedUser.id, shiftId)}
-            />;
+        switch (viewMode) {
+            case 'dashboard':
+                const userAssignedShifts = assignedShifts.filter(s => s.userId === user.id);
+                return <DashboardScreen
+                    user={user}
+                    shifts={shifts}
+                    activeShift={activeShift}
+                    assignedShifts={userAssignedShifts}
+                    onLogout={handleLogout}
+                    onClock={handleClock}
+                />;
+            case 'live':
+                return <LiveWorkersPanel />;
+            case 'users':
+                return (
+                    <AdminDashboardScreen
+                        allUsers={users}
+                        onSelectUser={handleSelectUser}
+                        onDeleteUser={handleDeleteUser}
+                    />
+                );
+            case 'planner':
+                return (
+                    <ShiftPlannerScreen
+                        allUsers={users}
+                        assignedShifts={assignedShifts}
+                        onSaveShifts={setAssignedShifts}
+                    />
+                );
+            case 'userDetail':
+                return (
+                    <UserDetailScreen
+                        selectedUser={selectedUser!}
+                        userShifts={shifts}
+                        onBack={handleBackToAdmin}
+                        onUpdateShift={(updatedShift) => handleUpdateShift(selectedUser!.id, updatedShift)}
+                        onDeleteShift={(id) => handleDeleteShift(selectedUser!.id, id)}
+                    />
+                );
+            case 'globalShifts':
+                return <GlobalShiftsScreen assignedShifts={assignedShifts} />;
+            case 'profile':
+                return <ProfileScreen user={user} />;
+            default:
+                // Default fallback based on role
+                return user.isAdmin ? <LiveWorkersPanel /> : <DashboardScreen
+                    user={user}
+                    shifts={shifts}
+                    activeShift={activeShift}
+                    assignedShifts={assignedShifts.filter(s => s.userId === user.id)}
+                    onLogout={handleLogout}
+                    onClock={handleClock}
+                />;
         }
-        return <AdminDashboardScreen
-            adminUser={user}
-            allUsers={users}
-            onSelectUser={handleSelectUser}
-            onLogout={handleLogout}
-            assignedShifts={assignedShifts}
-            onSaveShifts={handleSaveShifts}
-            onDeleteUser={handleDeleteUser}
-        />;
-    }
-
-    const userAssignedShifts = assignedShifts.filter(s => s.userId === user.id);
+    };
 
     return (
-        <DashboardScreen
+        <Layout
             user={user}
-            shifts={shifts}
-            activeShift={activeShift}
-            assignedShifts={userAssignedShifts}
+            currentSection={viewMode}
+            onNavigate={setViewMode}
             onLogout={handleLogout}
-            onClock={handleClock}
-        />
+        >
+            {renderContent()}
+        </Layout>
     );
 };
 

@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import type { User, Shift } from '../types';
 import { ClockIcon } from './icons';
 import { formatTime } from '../utils/date';
+import { onActiveShifts } from '../services/dbService';
 
 interface LiveWorkersPanelProps {
-    allUsers: User[];
+    // No props needed - Firebase provides all data
 }
 
 interface ActiveWorker {
@@ -12,55 +13,24 @@ interface ActiveWorker {
     shift: Shift;
 }
 
-export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = ({ allUsers }) => {
+export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = () => {
     const [activeWorkers, setActiveWorkers] = useState<ActiveWorker[]>([]);
     const [currentTime, setCurrentTime] = useState(new Date());
 
-    // Recupera turni attivi da localStorage
+    // Listen to real-time active shifts from Firestore
     useEffect(() => {
-        const updateActiveWorkers = () => {
-            const workers: ActiveWorker[] = [];
-
-            allUsers.forEach(user => {
-                const activeShiftStr = localStorage.getItem(`activeShift_${user.id}`);
-                if (activeShiftStr) {
-                    try {
-                        const shift = JSON.parse(activeShiftStr) as Shift;
-                        workers.push({ user, shift });
-                    } catch (error) {
-                        console.error(`Error parsing active shift for user ${user.id}`, error);
-                    }
-                }
-            });
-
-            // Ordina per orario di inizio (più recenti prima)
+        const unsubscribe = onActiveShifts((workers) => {
+            // Sort by start time (most recent first)
             workers.sort((a, b) => {
                 return new Date(b.shift.startTime).getTime() - new Date(a.shift.startTime).getTime();
             });
-
             setActiveWorkers(workers);
-        };
-
-        updateActiveWorkers();
-
-        // Aggiorna ogni 5 secondi per rilevare nuovi turni
-        const interval = setInterval(updateActiveWorkers, 5000);
-
-        // Ascolta cambiamenti localStorage da altre tab/finestre
-        const handleStorageChange = (e: StorageEvent) => {
-            // Se cambia un activeShift, aggiorna immediatamente
-            if (e.key && e.key.startsWith('activeShift_')) {
-                updateActiveWorkers();
-            }
-        };
-
-        window.addEventListener('storage', handleStorageChange);
+        });
 
         return () => {
-            clearInterval(interval);
-            window.removeEventListener('storage', handleStorageChange);
+            unsubscribe();
         };
-    }, [allUsers]);
+    }, []);
 
     // Aggiorna tempo corrente ogni secondo per durata real-time
     useEffect(() => {

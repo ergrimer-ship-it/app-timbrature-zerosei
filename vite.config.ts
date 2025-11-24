@@ -5,8 +5,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 // https://vitejs.dev/config/
 export default defineConfig({
   // Base path per GitHub Pages
-  // URL finale: https://ergrimer-ship-it.github.io/app-timbrature-zerosei/
-  base: '/app-timbrature-zerosei/',
+  // Base path relativo per massima compatibilità
+  base: './',
   plugins: [
     react(),
     VitePWA({
@@ -19,16 +19,16 @@ export default defineConfig({
         theme_color: '#1f2937',
         background_color: '#111827',
         display: 'standalone',
-        start_url: '/app-timbrature-zerosei/',
-        scope: '/app-timbrature-zerosei/',
+        start_url: './',
+        scope: './',
         icons: [
           {
-            src: '/app-timbrature-zerosei/icons/icon-192.svg',
+            src: 'icons/icon-192.svg',
             sizes: '192x192',
             type: 'image/svg+xml'
           },
           {
-            src: '/app-timbrature-zerosei/icons/icon-512.svg',
+            src: 'icons/icon-512.svg',
             sizes: '512x512',
             type: 'image/svg+xml'
           }

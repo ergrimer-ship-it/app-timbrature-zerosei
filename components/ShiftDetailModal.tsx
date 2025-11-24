@@ -16,7 +16,7 @@ interface ShiftDetailModalProps {
 const ShiftDisplay: React.FC<{ shift: Shift; onEdit: () => void; onDelete: () => void; isAdminView: boolean }> = ({ shift, onEdit, onDelete, isAdminView }) => {
     const startTime = new Date(shift.startTime);
     const endTime = shift.endTime ? new Date(shift.endTime) : null;
-    
+
     const tags = React.useMemo(() => {
         const activeTags = [];
         if (shift.tags?.cassa) activeTags.push('Cassa');
@@ -30,7 +30,7 @@ const ShiftDisplay: React.FC<{ shift: Shift; onEdit: () => void; onDelete: () =>
             <div className="flex justify-between items-start">
                 <div>
                     <div className="flex items-center gap-2 font-semibold text-lg">
-                        <ClockIcon className="w-5 h-5 text-blue-400"/>
+                        <ClockIcon className="w-5 h-5 text-blue-400" />
                         <span>{formatTime(startTime)} - {endTime ? formatTime(endTime) : 'In corso'}</span>
                     </div>
                     <span className="ml-7 font-mono text-sm text-gray-400">{formatDuration(startTime, endTime)}</span>
@@ -40,7 +40,7 @@ const ShiftDisplay: React.FC<{ shift: Shift; onEdit: () => void; onDelete: () =>
                         <button onClick={onEdit} className="p-2 text-gray-400 hover:text-blue-400 transition-colors" aria-label="Modifica turno">
                             <EditIcon className="w-5 h-5" />
                         </button>
-                         <button onClick={onDelete} className="p-2 text-gray-400 hover:text-red-400 transition-colors" aria-label="Elimina turno">
+                        <button onClick={onDelete} className="p-2 text-gray-400 hover:text-red-400 transition-colors" aria-label="Elimina turno">
                             <TrashIcon className="w-5 h-5" />
                         </button>
                     </div>
@@ -64,26 +64,26 @@ export const ShiftDetailModal: React.FC<ShiftDetailModalProps> = ({ date, shifts
     const dayShifts = shifts.filter(shift => {
         const shiftDate = new Date(shift.startTime);
         return shiftDate.getFullYear() === date.getFullYear() &&
-               shiftDate.getMonth() === date.getMonth() &&
-               shiftDate.getDate() === date.getDate();
+            shiftDate.getMonth() === date.getMonth() &&
+            shiftDate.getDate() === date.getDate();
     }).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-    
+
     const handleSave = (updatedShift: Shift) => {
         onUpdateShift?.(updatedShift);
         setEditingShiftId(null);
     };
 
     return (
-        <div 
+        <div
             className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50"
             onClick={onClose}
         >
-            <div 
+            <div
                 className="bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg p-6 relative transform transition-all animate-fade-in-up"
                 onClick={(e) => e.stopPropagation()}
             >
-                <button 
-                    onClick={onClose} 
+                <button
+                    onClick={onClose}
                     className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
                 >
                     <XCircleIcon className="w-8 h-8" />
@@ -95,7 +95,7 @@ export const ShiftDetailModal: React.FC<ShiftDetailModalProps> = ({ date, shifts
                     {dayShifts.length > 0 ? dayShifts.map(shift => (
                         <div key={shift.id}>
                             {editingShiftId === shift.id ? (
-                                <ShiftEditor 
+                                <ShiftEditor
                                     shift={shift}
                                     onSave={handleSave}
                                     onCancel={() => setEditingShiftId(null)}
@@ -105,14 +105,18 @@ export const ShiftDetailModal: React.FC<ShiftDetailModalProps> = ({ date, shifts
                                     shift={shift}
                                     isAdminView={isAdminView}
                                     onEdit={() => setEditingShiftId(shift.id)}
-                                    onDelete={() => onDeleteShift?.(shift.id)}
+                                    onDelete={() => {
+                                        if (window.confirm("Sei sicuro di voler eliminare questo turno? Questa azione è irreversibile.")) {
+                                            onDeleteShift?.(shift.id);
+                                        }
+                                    }}
                                 />
                             )}
                         </div>
                     )) : <p className="text-gray-400">Nessun turno completato per questo giorno.</p>}
                 </div>
             </div>
-             <style>{`
+            <style>{`
                 @keyframes fade-in-up {
                     from { opacity: 0; transform: translateY(20px); }
                     to { opacity: 1; transform: translateY(0); }
