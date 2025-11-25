@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { User, Shift, AssignedShift } from './types';
+import type { User, Shift, AssignedShift, ShiftType } from './types';
 import { LoginScreen } from './components/LoginScreen';
 import { DashboardScreen } from './components/DashboardScreen';
 import { RegistrationScreen } from './components/RegistrationScreen';
@@ -9,11 +9,14 @@ import { LiveWorkersPanel } from './components/LiveWorkersPanel';
 import { ProfileScreen } from './components/ProfileScreen';
 import { GlobalShiftsScreen } from './components/GlobalShiftsScreen';
 import { ShiftPlannerScreen } from './components/ShiftPlannerScreen';
+import { DocumentsScreen } from './components/DocumentsScreen';
 import { Layout } from './components/Layout';
 
 // Firebase services
 import { login, register, subscribeAuth, logout } from './authService';
-import { getAllUsers, getShifts, addShift, deleteShift, setActiveShift as setActiveShiftDb, clearActiveShift as clearActiveShiftDb } from './services/dbService';
+import { getAllUsers, getShifts, addShift, deleteShift, setActiveShift as setActiveShiftDb, getActiveShift as getActiveShiftDb, clearActiveShift as clearActiveShiftDb, saveAssignedShifts, getAssignedShifts } from './services/dbService';
+import { requestNotificationPermission, setupForegroundMessageListener } from './services/notificationService';
+import { createNotification, listenToAdminNotifications, showBrowserNotification } from './services/localNotificationService';
 
 const App: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
@@ -75,6 +78,19 @@ const App: React.FC = () => {
         setIsInitialized(true);
     }, []);
 
+    // Load assigned shifts from Firebase on mount
+    useEffect(() => {
+        const loadAssignedShifts = async () => {
+            try {
+                const shifts = await getAssignedShifts();
+                setAssignedShifts(shifts);
+            } catch (error) {
+                console.error('Failed to load assigned shifts:', error);
+            }
+        };
+        loadAssignedShifts();
+    }, []);
+
     const handleLogin = useCallback(async (name: string, surname: string, password: string, rememberMe: boolean) => {
         try {
             const user = await login(name, surname, password);
@@ -83,13 +99,50 @@ const App: React.FC = () => {
 
             if (user.isAdmin) {
                 setViewMode('live');
+
+                // Request notification permission for admin
+                await requestNotificationPermission(user.id);
+                setupForegroundMessageListener();
+
+                // Setup notification listener for admins
+                listenToAdminNotifications((notification) => {
+                    console.log('New notification:', notification);
+                    showBrowserNotification(
+                        'Timbratura Dipendente',
+                        notification.message
+                    );
+                });
             } else {
                 setViewMode('dashboard');
                 // Load shifts from Firestore
                 const userShifts = await getShifts(user.id);
                 setShifts(userShifts);
-                // Active shift will be listened to by LiveWorkersPanel; set to null initially
-                setActiveShift(null);
+                // Load active shift from Firebase
+                try {
+                    console.log('Attempting to load activeShift for user:', user.id);
+                    const activeShiftFromDb = await getActiveShiftDb(user.id);
+                    console.log('Loaded activeShift from DB:', activeShiftFromDb);
+                    setActiveShift(activeShiftFromDb);
+                } catch (error) {
+                    console.error('Error loading activeShift:', error);
+                    setActiveShift(null);
+                }
+
+                // Request notification permission
+                await requestNotificationPermission(user.id);
+                setupForegroundMessageListener();
+
+                // Setup notification listener for document uploads
+                listenToAdminNotifications((notification) => {
+                    // Only show notifications for this user
+                    if (notification.userId === user.id && notification.type === 'document_upload') {
+                        console.log('New document notification:', notification);
+                        showBrowserNotification(
+                            'Nuovo Documento',
+                            notification.message
+                        );
+                    }
+                });
             }
 
             if (rememberMe) {
@@ -127,27 +180,48 @@ const App: React.FC = () => {
         setViewMode('dashboard');
     }, []);
 
-    const handleClock = useCallback(async (tags: Shift['tags']) => {
+    const handleClock = useCallback(async (shiftType: ShiftType) => {
         if (!user) return;
+
+        console.log('handleClock called with shiftType:', shiftType);
+        console.log('Current activeShift:', activeShift);
 
         const now = new Date();
         if (activeShift) {
             // Clocking OUT
             const completedShift: Shift = { ...activeShift, endTime: now.toISOString() };
+            console.log('Clocking OUT - completedShift:', completedShift);
             await addShift(user.id, completedShift);
             await clearActiveShiftDb(user.id);
             setShifts(prev => [...prev, completedShift]);
             setActiveShift(null);
+
+            // Create notification for admins
+            await createNotification(
+                'clock_out',
+                user.id,
+                `${user.name} ${user.surname}`,
+                `${user.name} ${user.surname} ha timbrato l'uscita alle ${new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`
+            );
         } else {
             // Clocking IN
             const newShift: Shift = {
                 id: `shift_${now.getTime()}`,
                 startTime: now.toISOString(),
                 endTime: null,
-                tags: tags,
+                type: shiftType,
             };
+            console.log('Clocking IN - newShift:', newShift);
             await setActiveShiftDb(user.id, newShift);
             setActiveShift(newShift);
+
+            // Create notification for admins
+            await createNotification(
+                'clock_in',
+                user.id,
+                `${user.name} ${user.surname}`,
+                `${user.name} ${user.surname} ha timbrato l'entrata alle ${new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`
+            );
         }
     }, [activeShift, user]);
 
@@ -247,11 +321,20 @@ const App: React.FC = () => {
                     />
                 );
             case 'planner':
+                const handleSaveShifts = async (shifts: AssignedShift[]) => {
+                    try {
+                        await saveAssignedShifts(shifts);
+                        setAssignedShifts(shifts);
+                    } catch (error) {
+                        console.error('Failed to save assigned shifts:', error);
+                        alert('Errore durante il salvataggio dei turni.');
+                    }
+                };
                 return (
                     <ShiftPlannerScreen
                         allUsers={users}
                         assignedShifts={assignedShifts}
-                        onSaveShifts={setAssignedShifts}
+                        onSaveShifts={handleSaveShifts}
                     />
                 );
             case 'userDetail':
@@ -266,6 +349,8 @@ const App: React.FC = () => {
                 );
             case 'globalShifts':
                 return <GlobalShiftsScreen assignedShifts={assignedShifts} />;
+            case 'documents':
+                return <DocumentsScreen user={user} allUsers={users} />;
             case 'profile':
                 return <ProfileScreen user={user} />;
             default:

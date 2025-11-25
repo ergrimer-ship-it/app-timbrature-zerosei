@@ -54,6 +54,18 @@ export const setActiveShift = async (userId: string, shift: Shift) => {
     await setDoc(ref, shift);
 };
 
+/** Get the active shift for a user */
+export const getActiveShift = async (userId: string): Promise<Shift | null> => {
+    console.log('getActiveShift called for userId:', userId);
+    const ref = doc(db, 'activeShifts', userId);
+    const snap = await getDoc(ref);
+    console.log('getActiveShift - snap.exists():', snap.exists());
+    if (snap.exists()) {
+        console.log('getActiveShift - data:', snap.data());
+    }
+    return snap.exists() ? (snap.data() as Shift) : null;
+};
+
 /** Clear the active shift for a user */
 export const clearActiveShift = async (userId: string) => {
     const ref = doc(db, 'activeShifts', userId);
@@ -88,4 +100,55 @@ export const deleteAllShiftsForAllUsers = async () => {
             await deleteShift(user.id, shift.id);
         }
     }
+};
+
+// Assigned Shifts Service (for shift planning)
+
+import type { AssignedShift } from '../types';
+
+/** Save all assigned shifts to Firebase */
+export const saveAssignedShifts = async (shifts: AssignedShift[]): Promise<void> => {
+    const shiftsRef = doc(db, 'assignedShifts', 'all');
+    await setDoc(shiftsRef, { shifts });
+};
+
+/** Load all assigned shifts from Firebase */
+export const getAssignedShifts = async (): Promise<AssignedShift[]> => {
+    const shiftsRef = doc(db, 'assignedShifts', 'all');
+    const snap = await getDoc(shiftsRef);
+    if (snap.exists()) {
+        const data = snap.data();
+        return data.shifts || [];
+    }
+    return [];
+};
+
+// Documents Service (Link-based, no Storage)
+
+import type { Document } from '../types';
+
+export const addUserDocumentLink = async (userId: string, fileName: string, fileUrl: string, adminId: string): Promise<Document> => {
+    const newDoc: Document = {
+        id: `doc_${Date.now()}`,
+        userId,
+        fileName,
+        fileUrl,
+        uploadDate: new Date().toISOString(),
+        uploadedBy: adminId
+    };
+
+    // Save to Firestore
+    await setDoc(doc(db, 'users', userId, 'documents', newDoc.id), newDoc);
+    return newDoc;
+};
+
+export const getUserDocuments = async (userId: string): Promise<Document[]> => {
+    const q = query(collection(db, 'users', userId, 'documents'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => doc.data() as Document).sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
+};
+
+export const deleteUserDocument = async (userId: string, docId: string): Promise<void> => {
+    // Delete from Firestore only (no Storage)
+    await deleteDoc(doc(db, 'users', userId, 'documents', docId));
 };
