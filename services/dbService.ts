@@ -19,6 +19,29 @@ export const getAllUsers = async (): Promise<User[]> => {
     return snap.docs.map(d => d.data() as User);
 };
 
+/** Delete a user and all their data */
+export const deleteUser = async (userId: string): Promise<void> => {
+    // Delete user's shifts
+    const shiftsSnap = await getDocs(collection(db, 'users', userId, 'shifts'));
+    const deleteShiftsPromises = shiftsSnap.docs.map(d => deleteDoc(d.ref));
+    await Promise.all(deleteShiftsPromises);
+
+    // Delete user's documents
+    const docsSnap = await getDocs(collection(db, 'users', userId, 'documents'));
+    const deleteDocsPromises = docsSnap.docs.map(d => deleteDoc(d.ref));
+    await Promise.all(deleteDocsPromises);
+
+    // Delete active shift if exists
+    try {
+        await deleteDoc(doc(db, 'activeShifts', userId));
+    } catch (e) {
+        // Active shift might not exist, that's ok
+    }
+
+    // Delete user document
+    await deleteDoc(doc(db, 'users', userId));
+};
+
 /** Get shifts for a specific user */
 export const getShifts = async (userId: string): Promise<Shift[]> => {
     const snap = await getDocs(collection(db, 'users', userId, 'shifts'));

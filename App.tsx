@@ -14,7 +14,7 @@ import { Layout } from './components/Layout';
 
 // Firebase services
 import { login, register, subscribeAuth, logout } from './authService';
-import { getAllUsers, getShifts, addShift, deleteShift, setActiveShift as setActiveShiftDb, getActiveShift as getActiveShiftDb, clearActiveShift as clearActiveShiftDb, saveAssignedShifts, getAssignedShifts } from './services/dbService';
+import { getAllUsers, deleteUser, getShifts, addShift, deleteShift, setActiveShift as setActiveShiftDb, getActiveShift as getActiveShiftDb, clearActiveShift as clearActiveShiftDb, saveAssignedShifts, getAssignedShifts } from './services/dbService';
 import { requestNotificationPermission, setupForegroundMessageListener } from './services/notificationService';
 import { createNotification, listenToAdminNotifications, showBrowserNotification } from './services/localNotificationService';
 
@@ -239,15 +239,24 @@ const App: React.FC = () => {
         setViewMode('users');
     };
 
-    const handleDeleteUser = useCallback((userIdToDelete: string) => {
-        // Remove user from the main list
-        setUsers((prevUsers: User[]) => prevUsers.filter((u: User) => u.id !== userIdToDelete));
+    const handleDeleteUser = useCallback(async (userIdToDelete: string) => {
+        try {
+            // Delete user from Firebase
+            await deleteUser(userIdToDelete);
 
-        // Remove their assigned shifts
-        setAssignedShifts((prevAssigned: AssignedShift[]) => prevAssigned.filter((s: AssignedShift) => s.userId !== userIdToDelete));
+            // Remove user from the main list
+            setUsers((prevUsers: User[]) => prevUsers.filter((u: User) => u.id !== userIdToDelete));
 
-        // Note: User data in Firestore should be deleted via admin panel in future
-    }, []);
+            // Remove their assigned shifts
+            setAssignedShifts((prevAssigned: AssignedShift[]) => prevAssigned.filter((s: AssignedShift) => s.userId !== userIdToDelete));
+
+            // Reload users from Firebase to ensure consistency
+            await loadUsers();
+        } catch (error) {
+            console.error('Failed to delete user:', error);
+            alert('Errore durante l\'eliminazione dell\'utente.');
+        }
+    }, [loadUsers]);
 
     const handleUpdateShift = useCallback(async (userId: string, updatedShift: Shift) => {
         // Update shift in Firestore
