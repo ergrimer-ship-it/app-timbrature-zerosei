@@ -175,3 +175,85 @@ export const deleteUserDocument = async (userId: string, docId: string): Promise
     // Delete from Firestore only (no Storage)
     await deleteDoc(doc(db, 'users', userId, 'documents', docId));
 };
+
+// Salary Advances Service
+
+import type { SalaryAdvance, FutureLeave } from '../types';
+
+export const addSalaryAdvance = async (userId: string, advance: SalaryAdvance): Promise<void> => {
+    const advanceRef = doc(db, 'users', userId, 'salaryAdvances', advance.id);
+    await setDoc(advanceRef, advance);
+};
+
+export const getSalaryAdvances = async (userId: string): Promise<SalaryAdvance[]> => {
+    const q = query(collection(db, 'users', userId, 'salaryAdvances'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => doc.data() as SalaryAdvance).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+};
+
+export const deleteSalaryAdvance = async (userId: string, advanceId: string): Promise<void> => {
+    await deleteDoc(doc(db, 'users', userId, 'salaryAdvances', advanceId));
+};
+
+// Future Leaves Service
+
+export const addFutureLeave = async (userId: string, leave: FutureLeave): Promise<void> => {
+    const leaveRef = doc(db, 'users', userId, 'futureLeaves', leave.id);
+    await setDoc(leaveRef, leave);
+};
+
+export const getFutureLeaves = async (userId: string): Promise<FutureLeave[]> => {
+    const q = query(collection(db, 'users', userId, 'futureLeaves'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => doc.data() as FutureLeave).sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+};
+
+export const deleteFutureLeave = async (userId: string, leaveId: string): Promise<void> => {
+    await deleteDoc(doc(db, 'users', userId, 'futureLeaves', leaveId));
+};
+
+// Backup Export Service
+
+export interface BackupData {
+    exportDate: string;
+    users: User[];
+    shifts: { userId: string; shifts: Shift[] }[];
+    salaryAdvances: { userId: string; advances: SalaryAdvance[] }[];
+    futureLeaves: { userId: string; leaves: FutureLeave[] }[];
+    assignedShifts: AssignedShift[];
+    documents: { userId: string; documents: Document[] }[];
+}
+
+export const exportAllData = async (): Promise<BackupData> => {
+    const users = await getAllUsers();
+
+    const shiftsData: { userId: string; shifts: Shift[] }[] = [];
+    const advancesData: { userId: string; advances: SalaryAdvance[] }[] = [];
+    const leavesData: { userId: string; leaves: FutureLeave[] }[] = [];
+    const documentsData: { userId: string; documents: Document[] }[] = [];
+
+    // Collect data for each user
+    for (const user of users) {
+        const userShifts = await getShifts(user.id);
+        const userAdvances = await getSalaryAdvances(user.id);
+        const userLeaves = await getFutureLeaves(user.id);
+        const userDocuments = await getUserDocuments(user.id);
+
+        shiftsData.push({ userId: user.id, shifts: userShifts });
+        advancesData.push({ userId: user.id, advances: userAdvances });
+        leavesData.push({ userId: user.id, leaves: userLeaves });
+        documentsData.push({ userId: user.id, documents: userDocuments });
+    }
+
+    const assignedShifts = await getAssignedShifts();
+
+    return {
+        exportDate: new Date().toISOString(),
+        users,
+        shifts: shiftsData,
+        salaryAdvances: advancesData,
+        futureLeaves: leavesData,
+        assignedShifts,
+        documents: documentsData
+    };
+};

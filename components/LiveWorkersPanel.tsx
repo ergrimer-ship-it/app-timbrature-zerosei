@@ -51,12 +51,17 @@ export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = () => {
         return `${hours}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`;
     };
 
-    const getTags = (shift: Shift): string[] => {
-        const tags: string[] = [];
-        if (shift.tags?.cassa) tags.push('Cassa');
-        if (shift.tags?.macchinaPropria) tags.push('Macchina Propria');
-        if (shift.tags?.macchinaPizzeria) tags.push('Macchina Pizzeria');
-        return tags;
+    const getShiftTypeLabel = (shift: Shift): string | null => {
+        if (!shift.type) return null;
+
+        const labels: Record<string, string> = {
+            standard: 'Standard',
+            cassa: 'Cassa',
+            macchina_propria: 'Macchina Propria',
+            macchina_pizzeria: 'Macchina Pizzeria'
+        };
+
+        return labels[shift.type] || null;
     };
 
     if (activeWorkers.length === 0) {
@@ -86,7 +91,7 @@ export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {activeWorkers.map(({ user, shift }) => {
-                    const tags = getTags(shift);
+                    const shiftTypeLabel = getShiftTypeLabel(shift);
                     const startTime = new Date(shift.startTime);
 
                     return (
@@ -124,18 +129,14 @@ export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = () => {
                                     <span className="text-sm">Durata: <span className="font-mono font-semibold text-emerald-400">{calculateDuration(shift.startTime)}</span></span>
                                 </div>
 
-                                {tags.length > 0 && (
-                                    <div className="flex items-start gap-2 text-slate-300">
-                                        <svg className="w-4 h-4 text-yellow-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                {shiftTypeLabel && (
+                                    <div className="flex items-center gap-2 text-slate-300">
+                                        <svg className="w-4 h-4 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                                         </svg>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {tags.map(tag => (
-                                                <span key={tag} className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs px-2 py-0.5 rounded-full font-medium">
-                                                    {tag}
-                                                </span>
-                                            ))}
-                                        </div>
+                                        <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs px-2 py-0.5 rounded-full font-medium">
+                                            {shiftTypeLabel}
+                                        </span>
                                     </div>
                                 )}
                             </div>

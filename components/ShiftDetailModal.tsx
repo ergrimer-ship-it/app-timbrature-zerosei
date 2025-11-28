@@ -17,13 +17,18 @@ const ShiftDisplay: React.FC<{ shift: Shift; onEdit: () => void; onDelete: () =>
     const startTime = new Date(shift.startTime);
     const endTime = shift.endTime ? new Date(shift.endTime) : null;
 
-    const tags = React.useMemo(() => {
-        const activeTags = [];
-        if (shift.tags?.cassa) activeTags.push('Cassa');
-        if (shift.tags?.macchinaPropria) activeTags.push('Macchina Propria');
-        if (shift.tags?.macchinaPizzeria) activeTags.push('Macchina Pizzeria');
-        return activeTags;
-    }, [shift.tags]);
+    const shiftTypeLabel = React.useMemo(() => {
+        if (!shift.type) return null;
+
+        const labels: Record<string, string> = {
+            standard: 'Standard',
+            cassa: 'Cassa',
+            macchina_propria: 'Macchina Propria',
+            macchina_pizzeria: 'Macchina Pizzeria'
+        };
+
+        return labels[shift.type] || null;
+    }, [shift.type]);
 
     return (
         <div className="bg-gray-700/50 p-4 rounded-lg">
@@ -46,11 +51,9 @@ const ShiftDisplay: React.FC<{ shift: Shift; onEdit: () => void; onDelete: () =>
                     </div>
                 )}
             </div>
-            {tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 pt-3 mt-3 border-t border-gray-600">
-                    {tags.map(tag => (
-                        <span key={tag} className="text-xs bg-yellow-600/50 text-yellow-200 px-2 py-1 rounded-full">{tag}</span>
-                    ))}
+            {shiftTypeLabel && (
+                <div className="pt-3 mt-3 border-t border-gray-600">
+                    <span className="text-xs bg-yellow-600/50 text-yellow-200 px-2 py-1 rounded-full">{shiftTypeLabel}</span>
                 </div>
             )}
         </div>

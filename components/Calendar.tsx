@@ -43,7 +43,7 @@ export const Calendar: React.FC<CalendarProps> = ({ shifts, isAdminView = false,
     }, [currentDate]);
 
     const shiftsByDay = useMemo(() => {
-        const map = new Map<string, { totalMs: number; tags: Set<string> }>();
+        const map = new Map<string, { totalMs: number }>();
         shifts.forEach(shift => {
             if (shift.endTime) {
                 const startDate = new Date(shift.startTime);
@@ -52,17 +52,10 @@ export const Calendar: React.FC<CalendarProps> = ({ shifts, isAdminView = false,
                 const dayKey = `${startDate.getFullYear()}-${(startDate.getMonth() + 1).toString().padStart(2, '0')}-${startDate.getDate().toString().padStart(2, '0')}`;
                 const duration = endDate.getTime() - startDate.getTime();
 
-                const existing = map.get(dayKey) || { totalMs: 0, tags: new Set<string>() };
-
+                const existing = map.get(dayKey) || { totalMs: 0 };
                 const newTotalMs = existing.totalMs + duration;
-                const newTags = existing.tags;
-                if (shift.tags) {
-                    if (shift.tags.cassa) newTags.add('Cassa');
-                    if (shift.tags.macchinaPropria) newTags.add('Macchina Propria');
-                    if (shift.tags.macchinaPizzeria) newTags.add('Macchina Pizzeria');
-                }
 
-                map.set(dayKey, { totalMs: newTotalMs, tags: newTags });
+                map.set(dayKey, { totalMs: newTotalMs });
             }
         });
         return map;
@@ -84,18 +77,28 @@ export const Calendar: React.FC<CalendarProps> = ({ shifts, isAdminView = false,
     };
 
     const monthlyTotalMs = useMemo(() => {
-        let total = 0;
-        // Correctly iterate over the current month's shifts
+        const totals = {
+            total: 0,
+            standard: 0,
+            cassa: 0,
+            macchina_propria: 0,
+            macchina_pizzeria: 0
+        };
+
         const currentYear = currentDate.getFullYear();
         const currentMonth = currentDate.getMonth();
 
         shifts.forEach(shift => {
             const shiftDate = new Date(shift.startTime);
             if (shift.endTime && shiftDate.getFullYear() === currentYear && shiftDate.getMonth() === currentMonth) {
-                total += new Date(shift.endTime).getTime() - shiftDate.getTime();
+                const duration = new Date(shift.endTime).getTime() - shiftDate.getTime();
+                totals.total += duration;
+
+                const type = shift.type || 'standard';
+                totals[type] += duration;
             }
         });
-        return total;
+        return totals;
     }, [shifts, currentDate]);
 
     return (
@@ -111,8 +114,39 @@ export const Calendar: React.FC<CalendarProps> = ({ shifts, isAdminView = false,
                     <ChevronRightIcon />
                 </button>
             </div>
-            <div className="text-center mb-4 text-blue-300 font-semibold">
-                Totale Mese: {renderHoursAndMinutes(monthlyTotalMs)}
+            <div className="mb-4 p-3 bg-slate-900/50 rounded-xl border border-slate-700/50">
+                <div className="text-center mb-2">
+                    <p className="text-sm text-slate-400 mb-1">Ore Totali Mese</p>
+                    <p className="text-2xl font-bold text-indigo-300">{renderHoursAndMinutes(monthlyTotalMs.total)}</p>
+                </div>
+                {monthlyTotalMs.total > 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-700/50 space-y-1 text-sm">
+                        {monthlyTotalMs.standard > 0 && (
+                            <div className="flex justify-between text-slate-300">
+                                <span>Standard:</span>
+                                <span className="font-mono">{renderHoursAndMinutes(monthlyTotalMs.standard)}</span>
+                            </div>
+                        )}
+                        {monthlyTotalMs.cassa > 0 && (
+                            <div className="flex justify-between text-slate-300">
+                                <span>Cassa:</span>
+                                <span className="font-mono">{renderHoursAndMinutes(monthlyTotalMs.cassa)}</span>
+                            </div>
+                        )}
+                        {monthlyTotalMs.macchina_propria > 0 && (
+                            <div className="flex justify-between text-slate-300">
+                                <span>Macchina Propria:</span>
+                                <span className="font-mono">{renderHoursAndMinutes(monthlyTotalMs.macchina_propria)}</span>
+                            </div>
+                        )}
+                        {monthlyTotalMs.macchina_pizzeria > 0 && (
+                            <div className="flex justify-between text-slate-300">
+                                <span>Macchina Pizzeria:</span>
+                                <span className="font-mono">{renderHoursAndMinutes(monthlyTotalMs.macchina_pizzeria)}</span>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
             <div className="grid grid-cols-7 gap-2 text-center text-sm text-gray-400 font-semibold mb-2">
                 {WEEK_DAYS.map(day => <div key={day}>{day}</div>)}
@@ -124,7 +158,6 @@ export const Calendar: React.FC<CalendarProps> = ({ shifts, isAdminView = false,
                     const dayKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
                     const dayData = shiftsByDay.get(dayKey);
                     const hasShifts = !!dayData && dayData.totalMs > 0;
-                    const tags = dayData?.tags ? Array.from(dayData.tags).sort() : [];
 
                     const today = new Date();
                     const isToday = date.getFullYear() === today.getFullYear() &&
@@ -144,11 +177,6 @@ export const Calendar: React.FC<CalendarProps> = ({ shifts, isAdminView = false,
                             <span className={`text-sm md:text-base ${isToday ? 'font-extrabold text-white' : 'text-gray-300'}`}>{date.getDate()}</span>
                             {hasShifts && (
                                 <span className="text-xs md:text-sm font-bold text-blue-300 mt-1">{renderHoursAndMinutes(dayData.totalMs)}</span>
-                            )}
-                            {tags.length > 0 && (
-                                <span className="text-[10px] leading-tight text-yellow-400 mt-1 px-1 truncate" title={tags.join(', ')}>
-                                    {tags.join(', ')}
-                                </span>
                             )}
                         </button>
                     );

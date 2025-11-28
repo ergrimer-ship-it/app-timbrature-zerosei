@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import type { User } from '../types';
-import { UsersIcon, TrashIcon, EyeIcon, EyeOffIcon } from './icons';
+import { UsersIcon, TrashIcon, EyeIcon, EyeOffIcon, DownloadIcon } from './icons';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { exportAllData } from '../services/dbService';
 
 interface AdminDashboardScreenProps {
     allUsers: User[];
@@ -12,7 +13,8 @@ interface AdminDashboardScreenProps {
 export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ allUsers, onSelectUser, onDeleteUser }) => {
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
     const [visiblePasswordUserId, setVisiblePasswordUserId] = useState<string | null>(null);
-    const regularUsers = allUsers.filter(u => !u.isAdmin);
+    const [isExporting, setIsExporting] = useState(false);
+    // const regularUsers = allUsers.filter(u => !u.isAdmin); // Removed filter as per user request
 
     const handleDeleteClick = (user: User, event: React.MouseEvent) => {
         event.stopPropagation();
@@ -26,11 +28,45 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ allU
         }
     };
 
+    const handleExportBackup = async () => {
+        setIsExporting(true);
+        try {
+            const backupData = await exportAllData();
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const filename = `backup_${timestamp}.json`;
+
+            const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error exporting backup:', error);
+            alert('Errore durante l\'esportazione del backup');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
-            <header>
-                <h1 className="text-3xl font-bold text-white mb-2">Gestione Utenti</h1>
-                <p className="text-slate-400">Visualizza e gestisci i dipendenti registrati.</p>
+            <header className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold text-white mb-2">Gestione Utenti</h1>
+                    <p className="text-slate-400">Visualizza e gestisci i dipendenti registrati.</p>
+                </div>
+                <button
+                    onClick={handleExportBackup}
+                    disabled={isExporting}
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <DownloadIcon className="w-5 h-5" />
+                    {isExporting ? 'Esportazione...' : 'Esporta Backup'}
+                </button>
             </header>
 
             <div className="glass-panel p-6 rounded-3xl shadow-lg">
@@ -38,8 +74,8 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ allU
                     <UsersIcon className="text-indigo-400" /> Utenti Registrati
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {regularUsers.length > 0 ? (
-                        regularUsers.map(user => (
+                    {allUsers.length > 0 ? (
+                        allUsers.map(user => (
                             <div
                                 key={user.id}
                                 onClick={() => onSelectUser(user)}
@@ -50,7 +86,10 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ allU
                                         {user.name.charAt(0)}{user.surname.charAt(0)}
                                     </div>
                                     <div>
-                                        <span className="font-bold text-slate-200 block">{user.name} {user.surname}</span>
+                                        <span className="font-bold text-slate-200 block">
+                                            {user.name} {user.surname}
+                                            {user.isAdmin && <span className="ml-2 text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">ADMIN</span>}
+                                        </span>
                                         <span className="text-xs text-indigo-400 group-hover:text-indigo-300 transition-colors">Visualizza Calendario</span>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className="text-xs text-slate-500">

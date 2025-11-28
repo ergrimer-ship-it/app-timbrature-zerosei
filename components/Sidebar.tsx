@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UsersIcon, CalendarIcon, CogIcon, MenuIcon, XIcon, LogoutIcon, ClipboardListIcon, ClockIcon } from './icons';
+import { UsersIcon, CalendarIcon, CogIcon, MenuIcon, XIcon, LogoutIcon, ClipboardListIcon, ClockIcon, DocumentIcon, FileTextIcon } from './icons';
 import type { User } from '../types';
 
 interface SidebarProps {
@@ -22,8 +22,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, currentSection, onNaviga
             ]
             : [
                 { id: 'dashboard', label: 'Timbratrice', icon: <ClockIcon className="w-5 h-5" /> },
+                { id: 'employeeNotes', label: 'Note e Richieste', icon: <FileTextIcon className="w-5 h-5" /> },
             ]),
         { id: 'globalShifts', label: 'Panoramica Turni', icon: <CalendarIcon className="w-5 h-5" /> },
+        { id: 'documents', label: 'Documenti', icon: <DocumentIcon className="w-5 h-5" /> },
         { id: 'profile', label: 'Profilo', icon: <CogIcon className="w-5 h-5" /> },
     ];
 

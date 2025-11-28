@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { Shift } from '../types';
+import type { Shift, ShiftType } from '../types';
 import { SaveIcon } from './icons';
 
 interface ShiftEditorProps {
@@ -21,7 +21,7 @@ const toLocalISOString = (isoString: string | null): string => {
 export const ShiftEditor: React.FC<ShiftEditorProps> = ({ shift, onSave, onCancel }) => {
     const [startTime, setStartTime] = useState(toLocalISOString(shift.startTime));
     const [endTime, setEndTime] = useState(toLocalISOString(shift.endTime));
-    const [tags, setTags] = useState(shift.tags || { cassa: false, macchinaPropria: false, macchinaPizzeria: false });
+    const [shiftType, setShiftType] = useState<ShiftType>(shift.type || 'standard');
 
     const handleSave = () => {
         // Convert local datetime string back to a full ISO string (UTC) for storage
@@ -29,13 +29,9 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({ shift, onSave, onCance
             ...shift,
             startTime: new Date(startTime).toISOString(),
             endTime: endTime ? new Date(endTime).toISOString() : null,
-            tags,
+            type: shiftType,
         };
         onSave(updatedShift);
-    };
-    
-    const handleTagChange = (tag: keyof typeof tags) => {
-        setTags(prev => ({ ...prev, [tag]: !prev[tag] }));
     };
 
     return (
@@ -43,16 +39,16 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({ shift, onSave, onCance
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Inizio</label>
-                    <input 
+                    <input
                         type="datetime-local"
                         value={startTime}
                         onChange={(e) => setStartTime(e.target.value)}
                         className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                 </div>
-                 <div>
+                <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Fine</label>
-                    <input 
+                    <input
                         type="datetime-local"
                         value={endTime}
                         onChange={(e) => setEndTime(e.target.value)}
@@ -61,18 +57,42 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({ shift, onSave, onCance
                 </div>
             </div>
             <div className="mb-4 pt-4 border-t border-gray-600">
-                <p className="text-sm font-medium text-gray-300 mb-2">Note</p>
+                <p className="text-sm font-medium text-gray-300 mb-2">Tipo di Turno</p>
                 <div className="flex flex-col sm:flex-row gap-4">
-                    <label className="flex items-center text-gray-200">
-                        <input type="checkbox" checked={tags.cassa} onChange={() => handleTagChange('cassa')} className="w-4 h-4 text-blue-500 bg-gray-600 rounded border-gray-500 focus:ring-blue-600" />
+                    <label className="flex items-center text-gray-200 cursor-pointer">
+                        <input
+                            type="radio"
+                            checked={shiftType === 'standard'}
+                            onChange={() => setShiftType('standard')}
+                            className="w-4 h-4 text-blue-500 bg-gray-600 border-gray-500 focus:ring-blue-600"
+                        />
+                        <span className="ml-2">Standard</span>
+                    </label>
+                    <label className="flex items-center text-gray-200 cursor-pointer">
+                        <input
+                            type="radio"
+                            checked={shiftType === 'cassa'}
+                            onChange={() => setShiftType('cassa')}
+                            className="w-4 h-4 text-blue-500 bg-gray-600 border-gray-500 focus:ring-blue-600"
+                        />
                         <span className="ml-2">Cassa</span>
                     </label>
-                     <label className="flex items-center text-gray-200">
-                        <input type="checkbox" checked={tags.macchinaPropria} onChange={() => handleTagChange('macchinaPropria')} className="w-4 h-4 text-blue-500 bg-gray-600 rounded border-gray-500 focus:ring-blue-600" />
+                    <label className="flex items-center text-gray-200 cursor-pointer">
+                        <input
+                            type="radio"
+                            checked={shiftType === 'macchina_propria'}
+                            onChange={() => setShiftType('macchina_propria')}
+                            className="w-4 h-4 text-blue-500 bg-gray-600 border-gray-500 focus:ring-blue-600"
+                        />
                         <span className="ml-2">Macchina Propria</span>
                     </label>
-                     <label className="flex items-center text-gray-200">
-                        <input type="checkbox" checked={tags.macchinaPizzeria} onChange={() => handleTagChange('macchinaPizzeria')} className="w-4 h-4 text-blue-500 bg-gray-600 rounded border-gray-500 focus:ring-blue-600" />
+                    <label className="flex items-center text-gray-200 cursor-pointer">
+                        <input
+                            type="radio"
+                            checked={shiftType === 'macchina_pizzeria'}
+                            onChange={() => setShiftType('macchina_pizzeria')}
+                            className="w-4 h-4 text-blue-500 bg-gray-600 border-gray-500 focus:ring-blue-600"
+                        />
                         <span className="ml-2">Macchina Pizzeria</span>
                     </label>
                 </div>

@@ -1,7 +1,7 @@
 {
   "name": "app-timbrature-dipendenti",
   "private": true,
-  "version": "1.0.4",
+  "version": "1.2.0",
   "description": "Un'applicazione per i dipendenti per timbrare l'inizio e la fine del turno e visualizzare le ore lavorate su un calendario.",
   "type": "module",
   "scripts": {

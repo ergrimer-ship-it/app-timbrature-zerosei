@@ -1,6 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
+import { getMessaging } from 'firebase/messaging';
 
 const firebaseConfig = {
     apiKey: "AIzaSyAPQcb4IX_KhjsteedOIbS4Szh1_nGP3t8",
@@ -17,6 +19,11 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firebase services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const storage = getStorage(app);
+
+// Initialize Firebase Messaging
+export const messaging = getMessaging(app);
+export const VAPID_KEY = 'BOzcllpaQdmjSEfaF69mLtGi2ylgZDcnaYkdWq4UJ1A8TEzKf__t2kZppdt91zdteQquvFkYJkW78cmhBikm7xs';
 
 // Enable offline persistence
 enableIndexedDbPersistence(db).catch((err) => {

@@ -10,6 +10,7 @@ import { ProfileScreen } from './components/ProfileScreen';
 import { GlobalShiftsScreen } from './components/GlobalShiftsScreen';
 import { ShiftPlannerScreen } from './components/ShiftPlannerScreen';
 import { DocumentsScreen } from './components/DocumentsScreen';
+import { EmployeeNotesScreen } from './components/EmployeeNotesScreen';
 import { Layout } from './components/Layout';
 
 // Firebase services
@@ -362,6 +363,13 @@ const App: React.FC = () => {
                 return <DocumentsScreen user={user} allUsers={users} />;
             case 'profile':
                 return <ProfileScreen user={user} />;
+            case 'employeeNotes':
+                return (
+                    <EmployeeNotesScreen
+                        selectedUser={user}
+                        isAdmin={false}
+                    />
+                );
             default:
                 // Default fallback based on role
                 return user.isAdmin ? <LiveWorkersPanel /> : <DashboardScreen
