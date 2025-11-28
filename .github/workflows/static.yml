@@ -22,11 +22,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Singolo task di deploy
-  deploy:
-    environment:
-      name: github-pages
-      # url: ${{ steps.deployment.outputs.page_url }}
+  # Singolo task di build
+  build_only:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
