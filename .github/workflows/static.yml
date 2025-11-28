@@ -22,8 +22,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Singolo task di build
-  build_only:
+  # Singolo task di deploy
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -35,17 +38,14 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Build
-        run: |
-          echo "Running build..."
-          npm run build
-          echo "Build finished."
-      # - name: Setup Pages
-      #   uses: actions/configure-pages@v4
-      # - name: Upload artifact
-      #   uses: actions/upload-pages-artifact@v3
-      #   with:
-      #     # Carica il contenuto della cartella 'dist'
-      #     path: './dist'
-      # - name: Deploy to GitHub Pages
-      #   id: deployment
-      #   uses: actions/deploy-pages@v4
+        run: npm run build
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Carica il contenuto della cartella 'dist'
+          path: './dist'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
