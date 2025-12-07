@@ -95,6 +95,23 @@ export const clearActiveShift = async (userId: string) => {
     await deleteDoc(ref);
 };
 
+/** Listen to real-time changes of active shift for a specific user */
+export const onActiveShiftChange = (
+    userId: string,
+    cb: (shift: Shift | null) => void
+) => {
+    const ref = doc(db, 'activeShifts', userId);
+    return onSnapshot(ref, (snapshot) => {
+        if (snapshot.exists()) {
+            console.log('onActiveShiftChange - shift exists:', snapshot.data());
+            cb(snapshot.data() as Shift);
+        } else {
+            console.log('onActiveShiftChange - no active shift');
+            cb(null);
+        }
+    });
+};
+
 /** Listen to real‑time active shifts (used by LiveWorkersPanel) */
 export const onActiveShifts = (
     cb: (workers: { user: User; shift: Shift }[]) => void

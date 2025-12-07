@@ -15,7 +15,7 @@ import { Layout } from './components/Layout';
 
 // Firebase services
 import { login, register, subscribeAuth, logout } from './authService';
-import { getAllUsers, deleteUser, getShifts, addShift, deleteShift, setActiveShift as setActiveShiftDb, getActiveShift as getActiveShiftDb, clearActiveShift as clearActiveShiftDb, saveAssignedShifts, getAssignedShifts } from './services/dbService';
+import { getAllUsers, deleteUser, getShifts, addShift, deleteShift, setActiveShift as setActiveShiftDb, getActiveShift as getActiveShiftDb, clearActiveShift as clearActiveShiftDb, saveAssignedShifts, getAssignedShifts, onActiveShiftChange } from './services/dbService';
 import { requestNotificationPermission, setupForegroundMessageListener } from './services/notificationService';
 import { createNotification, listenToAdminNotifications, showBrowserNotification } from './services/localNotificationService';
 
@@ -92,6 +92,46 @@ const App: React.FC = () => {
         loadAssignedShifts();
     }, []);
 
+    // Real-time listener for activeShift (for non-admin users)
+    useEffect(() => {
+        if (!user || user.isAdmin) {
+            // Only set up listener for non-admin users
+            setActiveShift(null);
+            return;
+        }
+
+        console.log('Setting up activeShift for user:', user.id);
+
+        // First, load the current activeShift immediately (critical for app reopen)
+        const loadInitialActiveShift = async () => {
+            try {
+                console.log('Loading initial activeShift from DB...');
+                const initialShift = await getActiveShiftDb(user.id);
+                console.log('Initial activeShift loaded:', initialShift);
+                setActiveShift(initialShift);
+            } catch (error) {
+                console.error('Error loading initial activeShift:', error);
+                setActiveShift(null);
+            }
+        };
+
+        // Load immediately on mount/user change
+        loadInitialActiveShift();
+
+        // Then set up real-time listener for subsequent changes
+        console.log('Setting up real-time activeShift listener for user:', user.id);
+        const unsubscribe = onActiveShiftChange(user.id, (shift) => {
+            console.log('ActiveShift changed (real-time):', shift);
+            setActiveShift(shift);
+        });
+
+        // Cleanup on unmount or user change
+        return () => {
+            console.log('Cleaning up activeShift listener');
+            unsubscribe();
+        };
+    }, [user]);
+
     const handleLogin = useCallback(async (name: string, surname: string, password: string, rememberMe: boolean) => {
         try {
             const user = await login(name, surname, password);
@@ -118,16 +158,7 @@ const App: React.FC = () => {
                 // Load shifts from Firestore
                 const userShifts = await getShifts(user.id);
                 setShifts(userShifts);
-                // Load active shift from Firebase
-                try {
-                    console.log('Attempting to load activeShift for user:', user.id);
-                    const activeShiftFromDb = await getActiveShiftDb(user.id);
-                    console.log('Loaded activeShift from DB:', activeShiftFromDb);
-                    setActiveShift(activeShiftFromDb);
-                } catch (error) {
-                    console.error('Error loading activeShift:', error);
-                    setActiveShift(null);
-                }
+                // Note: activeShift will be loaded via real-time listener in useEffect
 
                 // Request notification permission
                 await requestNotificationPermission(user.id);
