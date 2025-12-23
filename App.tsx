@@ -49,22 +49,21 @@ const App: React.FC = () => {
                 if (u.isAdmin) {
                     setViewMode('live');
                 } else {
-                    // Ensure users start at dashboard (Timbratrice) or keep current if navigating?
-                    // For initial load, dashboard is fine.
-                    // If we want to persist the last view, we'd need more logic, but for now let's fix the Admin issue.
-                    // We only force 'live' for admin if they are currently on 'dashboard' (default) to avoid overriding navigation if we were to add persistence later.
-                    // But since this runs on mount/auth change, setting it here is safer for the "initial load" case.
-                    // However, if I navigate, does this fire? No, subscribeAuth fires on Firebase auth state change.
-                    // So this is correct for page load / login.
                     setViewMode(prev => prev === 'dashboard' ? 'dashboard' : prev);
                 }
             }
         });
-        loadUsers();
         return () => {
             unsubAuth();
         };
-    }, [loadUsers]);
+    }, []);
+
+    // Load users when user becomes authenticated as admin
+    useEffect(() => {
+        if (user?.isAdmin) {
+            loadUsers();
+        }
+    }, [user, loadUsers]);
 
     // Load remembered credentials for login convenience
     useEffect(() => {
