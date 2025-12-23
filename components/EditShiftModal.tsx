@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shift, ShiftType } from '../types';
+import { Shift } from '../types';
 
 interface EditShiftModalProps {
     isOpen: boolean;
