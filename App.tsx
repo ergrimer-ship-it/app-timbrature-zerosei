@@ -377,6 +377,8 @@ const App: React.FC = () => {
                         onSaveShifts={handleSaveShifts}
                     />
                 );
+            case 'leaveSummary':
+                return <LeaveSummaryScreen />;
             case 'userDetail':
                 return (
                     <UserDetailScreen
