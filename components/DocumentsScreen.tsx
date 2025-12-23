@@ -168,6 +168,17 @@ export const DocumentsScreen: React.FC<DocumentsScreenProps> = ({ user, allUsers
                                             placeholder="https://drive.google.com/file/d/..."
                                             className="w-full px-4 py-2 bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                                         />
+                                        <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-xs text-blue-300">
+                                            <p className="font-semibold mb-1">💡 Come creare un link pubblico:</p>
+                                            <p className="mb-1"><strong>Google Drive:</strong></p>
+                                            <ol className="list-decimal ml-4 space-y-0.5 text-blue-200/80">
+                                                <li>Fai click destro sul file → "Condividi"</li>
+                                                <li>Clicca su "Modifica" o "Chiunque abbia il link"</li>
+                                                <li>Seleziona "Chiunque con il link può visualizzare"</li>
+                                                <li>Clicca "Copia link" e incollalo qui</li>
+                                            </ol>
+                                            <p className="mt-2 text-blue-200/60 italic">⚠️ Importante: Il link deve essere accessibile a "Chiunque con il link" per evitare che il dipendente debba chiedere autorizzazioni.</p>
+                                        </div>
                                     </div>
                                     <div className="flex gap-2">
                                         <button

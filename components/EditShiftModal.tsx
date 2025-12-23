@@ -46,6 +46,26 @@ export const EditShiftModal: React.FC<EditShiftModalProps> = ({ isOpen, onClose,
         onClose();
     };
 
+    const getDuration = () => {
+        if (!startTime || !endTime) return null;
+        const start = new Date(startTime);
+        const end = new Date(endTime);
+        const diffMs = end.getTime() - start.getTime();
+
+        if (diffMs < 0) return { error: 'L\'ora di fine è precedente all\'inizio' };
+
+        const hours = Math.floor(diffMs / (1000 * 60 * 60));
+        const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+        return {
+            text: `${hours}h ${minutes.toString().padStart(2, '0')}m`,
+            isLong: hours >= 24,
+            diffMs
+        };
+    };
+
+    const durationInfo = getDuration();
+
     if (!isOpen) return null;
 
     return (
@@ -82,6 +102,21 @@ export const EditShiftModal: React.FC<EditShiftModalProps> = ({ isOpen, onClose,
                         <p className="text-xs text-slate-500 mt-1">Lascia vuoto se il turno è ancora in corso.</p>
                     </div>
 
+                    {durationInfo && (
+                        <div className={`p-3 rounded-lg border ${durationInfo.error ? 'bg-red-500/10 border-red-500/50 text-red-400' :
+                                durationInfo.isLong ? 'bg-yellow-500/10 border-yellow-500/50 text-yellow-400' :
+                                    'bg-blue-500/10 border-blue-500/50 text-blue-300'
+                            }`}>
+                            <div className="text-sm font-bold flex justify-between items-center">
+                                <span>Durata Totale:</span>
+                                <span>{durationInfo.error || durationInfo.text}</span>
+                            </div>
+                            {durationInfo.isLong && (
+                                <p className="text-xs mt-1">⚠️ Attenzione: Il turno dura più di 24 ore. Verifica le date!</p>
+                            )}
+                        </div>
+                    )}
+
                     <div className="flex justify-end gap-3 mt-6">
                         <button
                             type="button"
@@ -92,7 +127,8 @@ export const EditShiftModal: React.FC<EditShiftModalProps> = ({ isOpen, onClose,
                         </button>
                         <button
                             type="submit"
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors"
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={!!durationInfo?.error}
                         >
                             Salva Modifiche
                         </button>

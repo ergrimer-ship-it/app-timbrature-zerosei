@@ -88,16 +88,25 @@ export const Calendar: React.FC<CalendarProps> = ({ shifts, isAdminView = false,
         const currentYear = currentDate.getFullYear();
         const currentMonth = currentDate.getMonth();
 
+        console.log('Calculating monthly totals for:', currentYear, currentMonth);
+        console.log('Total shifts available:', shifts.length);
+
         shifts.forEach(shift => {
             const shiftDate = new Date(shift.startTime);
             if (shift.endTime && shiftDate.getFullYear() === currentYear && shiftDate.getMonth() === currentMonth) {
                 const duration = new Date(shift.endTime).getTime() - shiftDate.getTime();
+                console.log(`Processing shift: ${shift.id}, Start: ${shift.startTime}, End: ${shift.endTime}, Duration (ms): ${duration}, Type: ${shift.type}`);
                 totals.total += duration;
 
                 const type = shift.type || 'standard';
-                totals[type] += duration;
+                if (totals[type] !== undefined) {
+                    totals[type] += duration;
+                } else {
+                    console.warn(`Unknown shift type: ${type}`);
+                }
             }
         });
+        console.log('calculated totals:', totals);
         return totals;
     }, [shifts, currentDate]);
 
