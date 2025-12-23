@@ -7,11 +7,12 @@ interface WeeklyCalendarProps {
     shifts: (Shift & { userId: string })[];
     assignedShifts: AssignedShift[];
     users: User[];
+    onShiftClick?: (user: User, actualShift?: Shift, assignedShift?: AssignedShift) => void;
 }
 
 const WEEK_DAYS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
-export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ shifts, assignedShifts, users }) => {
+export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ shifts, assignedShifts, users, onShiftClick }) => {
     const [currentWeekStart, setCurrentWeekStart] = useState(() => {
         const now = new Date();
         const day = now.getDay();
@@ -105,18 +106,22 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ shifts, assigned
                                                     {formatTime(new Date(actualShift.startTime))} - {actualShift.endTime ? formatTime(new Date(actualShift.endTime)) : '...'}
                                                 </>
                                             );
-                                            styleClass = "bg-indigo-500/20 border-indigo-500/30 text-indigo-200";
+                                            styleClass = "bg-indigo-500/20 border-indigo-500/30 text-indigo-200 hover:bg-indigo-500/30 cursor-pointer";
                                         } else if (assignedShift) {
                                             content = (
                                                 <>
                                                     {assignedShift.startTime}
                                                 </>
                                             );
-                                            styleClass = "bg-slate-600/20 border-slate-600/30 text-slate-300 border-dashed";
+                                            styleClass = "bg-slate-600/20 border-slate-600/30 text-slate-300 border-dashed hover:bg-slate-600/30 cursor-pointer";
                                         }
 
                                         return (
-                                            <div key={user.id} className={`flex items-center justify-between p-2 rounded-lg border ${styleClass}`}>
+                                            <div
+                                                key={user.id}
+                                                onClick={() => onShiftClick?.(user, actualShift, assignedShift)}
+                                                className={`flex items-center justify-between p-2 rounded-lg border transition-all ${styleClass}`}
+                                            >
                                                 <div className="flex items-center gap-2 overflow-hidden">
                                                     <div className="w-6 h-6 rounded-full bg-slate-700 flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white border border-slate-600">
                                                         {user.name.charAt(0)}{user.surname.charAt(0)}
