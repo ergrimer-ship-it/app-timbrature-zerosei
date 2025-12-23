@@ -12,7 +12,7 @@ interface LeaveItem {
     leave: FutureLeave;
 }
 
-export const LeaveSummaryScreen: React.FC<LeaveSummaryScreenProps> = ({ onBack }) => {
+export const LeaveSummaryScreen: React.FC<LeaveSummaryScreenProps> = () => {
     // Initialize with Next Month
     const [currentDate, setCurrentDate] = useState(() => {
         const d = new Date();

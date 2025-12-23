@@ -12,6 +12,7 @@ import { ShiftPlannerScreen } from './components/ShiftPlannerScreen';
 import { DocumentsScreen } from './components/DocumentsScreen';
 import { EmployeeNotesScreen } from './components/EmployeeNotesScreen';
 import { Layout } from './components/Layout';
+import { LeaveSummaryScreen } from './components/LeaveSummaryScreen';
 
 // Firebase services
 import { login, register, subscribeAuth, logout } from './authService';
