@@ -1,25 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { WeeklyCalendar } from './WeeklyCalendar';
 import { EditShiftModal } from './EditShiftModal';
-import { getAllUsers, getShifts, addShift } from '../services/dbService';
-import type { Shift, User, AssignedShift } from '../types';
+import { getShifts, addShift, getPublicUsers } from '../services/dbService';
+import type { Shift, AssignedShift, PublicUser } from '../types';
 
 interface GlobalShiftsScreenProps {
     assignedShifts: AssignedShift[];
 }
 
 export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assignedShifts }) => {
-    const [users, setUsers] = useState<User[]>([]);
+    const [users, setUsers] = useState<PublicUser[]>([]);
     const [allShifts, setAllShifts] = useState<(Shift & { userId: string })[]>([]);
 
     // Edit Modal State
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
-    const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null);
+    const [selectedUserForEdit, setSelectedUserForEdit] = useState<PublicUser | null>(null);
 
     useEffect(() => {
         const load = async () => {
-            const us = await getAllUsers();
+            const us = await getPublicUsers();
             setUsers(us);
             const shiftsPromises = us.map(async u => {
                 const userShifts = await getShifts(u.id);
@@ -32,7 +32,7 @@ export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assigned
         load();
     }, []);
 
-    const handleShiftClick = (user: User, actualShift?: Shift, assignedShift?: AssignedShift) => {
+    const handleShiftClick = (user: PublicUser, actualShift?: Shift, assignedShift?: AssignedShift) => {
         setSelectedUserForEdit(user);
 
         if (actualShift) {

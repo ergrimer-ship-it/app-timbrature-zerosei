@@ -24,7 +24,6 @@ service cloud.firestore {
       );
       
       // Only admins can update/delete users generally
-      // (User updating their own password logic is handled by Auth, not Firestore user doc usually, unless fields like name changed)
       allow update, delete: if isAdmin();
       
       // Subcollections
@@ -47,6 +46,14 @@ service cloud.firestore {
         allow read: if isOwner(userId) || isAdmin();
         allow write: if isAdmin();
       }
+    }
+
+    // Public Users - Safe profile data for everyone
+    match /publicUsers/{userId} {
+      // Authenticated users can read basic info (name/surname)
+      allow read: if request.auth != null;
+      // Admins and the user themselves can write
+      allow write: if isAdmin() || isOwner(userId);
     }
 
     // Active Shifts - used for tracking who is currently working

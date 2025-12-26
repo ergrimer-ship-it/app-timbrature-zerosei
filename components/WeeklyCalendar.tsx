@@ -1,13 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import type { Shift, User, AssignedShift } from '../types';
+import type { Shift, AssignedShift, PublicUser } from '../types';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
 import { formatTime } from '../utils/date';
 
 interface WeeklyCalendarProps {
     shifts: (Shift & { userId: string })[];
     assignedShifts: AssignedShift[];
-    users: User[];
-    onShiftClick?: (user: User, actualShift?: Shift, assignedShift?: AssignedShift) => void;
+    users: PublicUser[];
+    onShiftClick?: (user: PublicUser, actualShift?: Shift, assignedShift?: AssignedShift) => void;
 }
 
 const WEEK_DAYS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];

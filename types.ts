@@ -11,6 +11,12 @@ export interface User {
   fcmToken?: string;
 }
 
+export interface PublicUser {
+  id: string;
+  name: string;
+  surname: string;
+}
+
 export type ShiftType = 'standard' | 'cassa' | 'macchina_propria' | 'macchina_pizzeria';
 
 export interface Shift {

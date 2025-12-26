@@ -1,8 +1,8 @@
-
 import { auth, db } from './firebase';
 import { updatePassword as firebaseUpdatePassword, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import type { User } from './types';
+import { syncPublicUser } from './services/dbService';
 
 /** Register a new user. Uses a fake email based on name and surname. */
 export const register = async (
@@ -26,6 +26,10 @@ export const register = async (
 
     // Save user profile with email
     await setDoc(doc(db, 'users', firebaseUser.uid), userProfile);
+
+    // Sync to publicUsers for safe access
+    await syncPublicUser(userProfile);
+
     return userProfile;
 };
 

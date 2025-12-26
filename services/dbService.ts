@@ -11,7 +11,7 @@ import {
     query,
     where,
 } from 'firebase/firestore';
-import type { User, Shift } from '../types';
+import type { User, Shift, PublicUser } from '../types';
 
 /** Get all users */
 export const getAllUsers = async (): Promise<User[]> => {
@@ -19,8 +19,27 @@ export const getAllUsers = async (): Promise<User[]> => {
     return snap.docs.map(d => d.data() as User);
 };
 
+/** Get all public users (safe for non-admins) */
+export const getPublicUsers = async (): Promise<PublicUser[]> => {
+    const snap = await getDocs(collection(db, 'publicUsers'));
+    return snap.docs.map(d => d.data() as PublicUser);
+};
+
+/** Sync a user's public profile */
+export const syncPublicUser = async (user: User): Promise<void> => {
+    const publicUser: PublicUser = {
+        id: user.id,
+        name: user.name,
+        surname: user.surname
+    };
+    await setDoc(doc(db, 'publicUsers', user.id), publicUser);
+};
+
 /** Delete a user and all their data */
 export const deleteUser = async (userId: string): Promise<void> => {
+    // Delete public profile
+    await deleteDoc(doc(db, 'publicUsers', userId));
+
     // Delete user's shifts
     const shiftsSnap = await getDocs(collection(db, 'users', userId, 'shifts'));
     const deleteShiftsPromises = shiftsSnap.docs.map(d => deleteDoc(d.ref));
