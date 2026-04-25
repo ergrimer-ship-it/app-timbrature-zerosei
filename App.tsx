@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { User, Shift, AssignedShift, ShiftType } from './types';
 import { LoginScreen } from './components/LoginScreen';
 import { DashboardScreen } from './components/DashboardScreen';
@@ -19,6 +19,7 @@ import { login, register, subscribeAuth, logout } from './authService';
 import { getAllUsers, deleteUser, getShifts, addShift, deleteShift, setActiveShift as setActiveShiftDb, getActiveShift as getActiveShiftDb, clearActiveShift as clearActiveShiftDb, saveAssignedShifts, getAssignedShifts, onActiveShiftChange } from './services/dbService';
 import { requestNotificationPermission, setupForegroundMessageListener } from './services/notificationService';
 import { createNotification, listenToAdminNotifications, showBrowserNotification } from './services/localNotificationService';
+import { scheduleShiftReminders, clearAllReminders } from './services/shiftReminderService';
 
 const App: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
@@ -36,6 +37,18 @@ const App: React.FC = () => {
     const [rememberedCredentials, setRememberedCredentials] = useState<{ name: string, surname: string, password?: string } | null>(null);
     const [isInitialized, setIsInitialized] = useState(false);
 
+    // Ref to read activeShift inside scheduled callbacks without stale closure
+    const activeShiftRef = useRef<Shift | null>(null);
+    useEffect(() => { activeShiftRef.current = activeShift; }, [activeShift]);
+
+    // Schedule shift reminders whenever user or assigned shifts change
+    useEffect(() => {
+        if (!user || user.isAdmin) { clearAllReminders(); return; }
+        const userShifts = assignedShifts.filter(s => s.userId === user.id);
+        scheduleShiftReminders(userShifts, () => activeShiftRef.current !== null);
+        return () => clearAllReminders();
+    }, [user, assignedShifts]);
+
     // Function to load all users from Firestore
     const loadUsers = useCallback(async () => {
         const all = await getAllUsers();
@@ -44,15 +57,25 @@ const App: React.FC = () => {
 
     // Load users from Firestore on mount and listen to auth state changes
     useEffect(() => {
-        const unsubAuth = subscribeAuth((u) => {
+        const unsubAuth = subscribeAuth(async (u) => {
             setUser(u);
             if (u) {
                 if (u.isAdmin) {
                     setViewMode('live');
                 } else {
-                    setViewMode(prev => prev === 'dashboard' ? 'dashboard' : prev);
+                    setViewMode('dashboard');
+                    // Auto-load shifts on session restore (no need to re-login)
+                    try {
+                        const userShifts = await getShifts(u.id);
+                        setShifts(userShifts);
+                    } catch (error) {
+                        console.error('Failed to auto-load shifts:', error);
+                    }
                 }
             }
+            // Mark app as ready only AFTER Firebase has responded
+            // This prevents the login screen from flashing on returning users
+            setIsInitialized(true);
         });
         return () => {
             unsubAuth();
@@ -66,7 +89,7 @@ const App: React.FC = () => {
         }
     }, [user, loadUsers]);
 
-    // Load remembered credentials for login convenience
+    // Load remembered credentials for login convenience (name/surname pre-fill only)
     useEffect(() => {
         try {
             const stored = localStorage.getItem('rememberedCredentials');
@@ -76,7 +99,7 @@ const App: React.FC = () => {
         } catch (error) {
             console.error('Failed to load remembered credentials', error);
         }
-        setIsInitialized(true);
+        // Note: isInitialized is set inside subscribeAuth, after Firebase confirms auth state
     }, []);
 
     // Load assigned shifts from Firebase on mount
@@ -178,7 +201,8 @@ const App: React.FC = () => {
             }
 
             if (rememberMe) {
-                const credentials = { name: user.name, surname: user.surname, password: user.password };
+                // Only save name and surname — never save the password in localStorage
+                const credentials = { name: user.name, surname: user.surname };
                 localStorage.setItem('rememberedCredentials', JSON.stringify(credentials));
                 setRememberedCredentials(credentials);
             } else {
@@ -204,6 +228,7 @@ const App: React.FC = () => {
     }, [loadUsers]);
 
     const handleLogout = useCallback(() => {
+        clearAllReminders();
         setUser(null);
         setShifts([]);
         setActiveShift(null);

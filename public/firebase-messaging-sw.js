@@ -39,3 +39,16 @@ self.addEventListener('notificationclick', (event) => {
         clients.openWindow('/')
     );
 });
+
+// Handle messages from the client (scheduled local notifications)
+self.addEventListener('message', (event) => {
+    if (event.data?.type === 'SHOW_NOTIFICATION') {
+        event.waitUntil(
+            self.registration.showNotification(event.data.title, {
+                body: event.data.body,
+                icon: '/icon-192.png',
+                badge: '/icon-192.png',
+            })
+        );
+    }
+});

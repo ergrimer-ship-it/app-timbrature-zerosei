@@ -11,7 +11,7 @@ import {
     query,
     where,
 } from 'firebase/firestore';
-import type { User, Shift, PublicUser } from '../types';
+import type { User, Shift, PublicUser, AssignedShift, Document, SalaryAdvance, FutureLeave } from '../types';
 
 /** Get all users */
 export const getAllUsers = async (): Promise<User[]> => {
@@ -163,7 +163,6 @@ export const deleteAllShiftsForAllUsers = async () => {
 
 // Assigned Shifts Service (for shift planning)
 
-import type { AssignedShift } from '../types';
 
 /** Save all assigned shifts to Firebase */
 export const saveAssignedShifts = async (shifts: AssignedShift[]): Promise<void> => {
@@ -184,7 +183,6 @@ export const getAssignedShifts = async (): Promise<AssignedShift[]> => {
 
 // Documents Service (Link-based, no Storage)
 
-import type { Document } from '../types';
 
 export const addUserDocumentLink = async (userId: string, fileName: string, fileUrl: string, adminId: string): Promise<Document> => {
     const newDoc: Document = {
@@ -214,7 +212,6 @@ export const deleteUserDocument = async (userId: string, docId: string): Promise
 
 // Salary Advances Service
 
-import type { SalaryAdvance, FutureLeave } from '../types';
 
 export const addSalaryAdvance = async (userId: string, advance: SalaryAdvance): Promise<void> => {
     const advanceRef = doc(db, 'users', userId, 'salaryAdvances', advance.id);
