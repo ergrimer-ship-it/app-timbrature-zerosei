@@ -145,17 +145,24 @@ export const onActiveShiftChange = (
 export const onActiveShifts = (
     cb: (workers: { user: User; shift: Shift }[]) => void
 ) => {
+    let latestCall = 0;
     const col = collection(db, 'activeShifts');
     return onSnapshot(col, async snapshot => {
-        const workers: { user: User; shift: Shift }[] = [];
-        for (const docSnap of snapshot.docs) {
-            const shift = docSnap.data() as Shift;
-            const userSnap = await getDoc(doc(db, 'users', docSnap.id));
-            if (userSnap.exists()) {
-                workers.push({ user: userSnap.data() as User, shift });
-            }
-        }
-        cb(workers);
+        const callId = ++latestCall;
+
+        const results = await Promise.all(
+            snapshot.docs.map(async docSnap => {
+                const shift = docSnap.data() as Shift;
+                const userSnap = await getDoc(doc(db, 'users', docSnap.id));
+                if (!userSnap.exists()) return null;
+                return { user: userSnap.data() as User, shift };
+            })
+        );
+
+        // Scarta se nel frattempo è arrivato uno snapshot più recente
+        if (callId !== latestCall) return;
+
+        cb(results.filter((w): w is { user: User; shift: Shift } => w !== null));
     });
 };
 
