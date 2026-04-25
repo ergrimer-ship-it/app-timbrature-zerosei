@@ -5,9 +5,13 @@ let lateCheckInterval: ReturnType<typeof setInterval> | null = null;
 let lateCheckStartTimer: ReturnType<typeof setTimeout> | null = null;
 
 const fireNotification = (title: string, body: string) => {
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ type: 'SHOW_NOTIFICATION', title, body });
-    } else if ('Notification' in window && Notification.permission === 'granted') {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if ('serviceWorker' in navigator) {
+        // Use registration.showNotification() — works with any active SW (Workbox or FCM)
+        navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification(title, { body, icon: '/icon-192.png', badge: '/icon-192.png' });
+        });
+    } else {
         new Notification(title, { body, icon: '/icon-192.png', badge: '/icon-192.png' });
     }
 };
