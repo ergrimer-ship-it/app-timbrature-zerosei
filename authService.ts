@@ -20,12 +20,12 @@ export const register = async (
         name,
         surname,
         email,
-        password, // NOTE: plain text for demo only
         isAdmin,
     };
 
-    // Save user profile with email
     await setDoc(doc(db, 'users', firebaseUser.uid), userProfile);
+    // Save password separately in admin-only collection
+    await setDoc(doc(db, 'adminPasswords', firebaseUser.uid), { password });
 
     // Sync to publicUsers for safe access
     await syncPublicUser(userProfile);

@@ -3,6 +3,7 @@ import type { User, Shift } from '../types';
 import { Calendar } from './Calendar';
 import { EmployeeNotesScreen } from './EmployeeNotesScreen';
 import { ChevronLeftIcon, CalendarIcon, FileTextIcon } from './icons';
+import { getUserPassword } from '../services/dbService';
 
 interface UserDetailScreenProps {
     selectedUser: User;
@@ -14,6 +15,16 @@ interface UserDetailScreenProps {
 
 export const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ selectedUser, userShifts, onBack, onUpdateShift, onDeleteShift }) => {
     const [activeTab, setActiveTab] = useState<'calendar' | 'notes'>('calendar');
+    const [password, setPassword] = useState<string | null>(null);
+    const [loadingPassword, setLoadingPassword] = useState(false);
+
+    const handleShowPassword = async () => {
+        if (password !== null) { setPassword(null); return; }
+        setLoadingPassword(true);
+        const pw = await getUserPassword(selectedUser.id);
+        setPassword(pw ?? '(non trovata)');
+        setLoadingPassword(false);
+    };
 
     return (
         <div className="min-h-screen bg-gray-900 p-4 sm:p-6 lg:p-8">
@@ -24,6 +35,20 @@ export const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ selectedUser
                 </button>
                 <h1 className="text-2xl sm:text-3xl font-bold text-white">Dettaglio per {selectedUser.name} {selectedUser.surname}</h1>
                 <p className="text-gray-400">Visualizzazione del calendario timbrature e note.</p>
+
+                <div className="mt-3 flex items-center gap-3">
+                    <button
+                        onClick={handleShowPassword}
+                        className="px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors"
+                    >
+                        {loadingPassword ? 'Caricamento...' : password !== null ? 'Nascondi password' : 'Mostra password'}
+                    </button>
+                    {password !== null && (
+                        <span className="font-mono text-yellow-300 bg-slate-800 px-3 py-1.5 rounded-lg text-sm select-all">
+                            {password}
+                        </span>
+                    )}
+                </div>
 
                 {/* Tab Navigation */}
                 <div className="flex gap-2 mt-6">

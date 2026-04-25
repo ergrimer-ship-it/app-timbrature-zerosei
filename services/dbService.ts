@@ -13,6 +13,16 @@ import {
 } from 'firebase/firestore';
 import type { User, Shift, PublicUser, AssignedShift, Document, SalaryAdvance, FutureLeave } from '../types';
 
+/** Get password for a user (admin only) — reads from adminPasswords collection */
+export const getUserPassword = async (userId: string): Promise<string | null> => {
+    const snap = await getDoc(doc(db, 'adminPasswords', userId));
+    if (snap.exists()) return snap.data().password ?? null;
+    // Fallback: legacy users may have password in users doc
+    const userSnap = await getDoc(doc(db, 'users', userId));
+    if (userSnap.exists()) return userSnap.data().password ?? null;
+    return null;
+};
+
 /** Get all users */
 export const getAllUsers = async (): Promise<User[]> => {
     const snap = await getDocs(collection(db, 'users'));
