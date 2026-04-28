@@ -66,12 +66,13 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
             id: `shift_${Date.now()}_${Math.random()}`,
             date,
             userId: '',
-            startTime: '09:00',
+            startTime: '16:00',
+            endTime: '23:00',
         };
         setLocalShifts(prev => [...prev, newShift]);
     };
 
-    const handleUpdateShift = (id: string, field: 'userId' | 'startTime', value: string) => {
+    const handleUpdateShift = (id: string, field: 'userId' | 'startTime' | 'endTime', value: string) => {
         setLocalShifts(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
     };
 
@@ -126,7 +127,7 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
                         </h4>
                         <div className="space-y-2">
                             {shifts.map(shift => (
-                                <div key={shift.id} className="grid grid-cols-1 sm:grid-cols-[1fr,auto,auto] gap-2 items-center">
+                                <div key={shift.id} className="grid grid-cols-1 sm:grid-cols-[1fr,auto,auto,auto] gap-2 items-center">
                                     <select
                                         value={shift.userId}
                                         onChange={(e) => handleUpdateShift(shift.id, 'userId', e.target.value)}
@@ -135,11 +136,18 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
                                         <option value="">Seleziona Utente</option>
                                         {allUsers.map(u => <option key={u.id} value={u.id}>{u.name} {u.surname}</option>)}
                                     </select>
-                                    <input 
+                                    <input
                                         type="time"
                                         value={shift.startTime}
                                         onChange={(e) => handleUpdateShift(shift.id, 'startTime', e.target.value)}
                                         className="w-full sm:w-auto px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                    <input
+                                        type="time"
+                                        value={shift.endTime ?? ''}
+                                        onChange={(e) => handleUpdateShift(shift.id, 'endTime', e.target.value)}
+                                        className="w-full sm:w-auto px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Fine"
                                     />
                                     <button onClick={() => handleDeleteShift(shift.id)} className="p-2 text-gray-400 hover:text-red-400 transition-colors">
                                         <TrashIcon />

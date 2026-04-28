@@ -33,6 +33,7 @@ export interface AssignedShift {
   date: string; // YYYY-MM-DD format
   userId: string;
   startTime: string; // HH:mm format
+  endTime?: string;  // HH:mm format
 }
 
 export interface Document {

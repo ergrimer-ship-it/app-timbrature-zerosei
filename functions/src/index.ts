@@ -1,28 +1,22 @@
-import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { onRequest } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
+import { CloudTasksClient } from '@google-cloud/tasks';
 
 admin.initializeApp();
 const db = admin.firestore();
 const messaging = admin.messaging();
+const tasksClient = new CloudTasksClient();
+
+const LOCATION = 'us-central1';
+const QUEUE = 'shift-reminders';
 
 interface AssignedShift {
     id: string;
-    date: string;       // YYYY-MM-DD
+    date: string;      // YYYY-MM-DD
     userId: string;
-    startTime: string;  // HH:mm
-}
-
-function italianTime(now: Date): { hours: number; minutes: number } {
-    const parts = new Intl.DateTimeFormat('it-IT', {
-        timeZone: 'Europe/Rome',
-        hour: 'numeric',
-        minute: 'numeric',
-        hour12: false,
-    }).formatToParts(now);
-    return {
-        hours: parseInt(parts.find(p => p.type === 'hour')!.value),
-        minutes: parseInt(parts.find(p => p.type === 'minute')!.value),
-    };
+    startTime: string; // HH:mm
+    endTime?: string;  // HH:mm
 }
 
 function todayItaly(now: Date): string {
@@ -54,53 +48,114 @@ async function sendPush(userId: string, title: string, body: string): Promise<vo
     }
 }
 
-export const checkShiftReminders = onSchedule(
-    { schedule: 'every 1 minutes', timeZone: 'Europe/Rome' },
-    async () => {
+async function deleteTask(project: string, taskId: string): Promise<void> {
+    const parent = tasksClient.queuePath(project, LOCATION, QUEUE);
+    try {
+        await tasksClient.deleteTask({ name: `${parent}/tasks/${taskId}` });
+    } catch {
+        // task non esiste, ignora
+    }
+}
+
+async function createTask(
+    project: string,
+    taskId: string,
+    scheduleTime: Date,
+    payload: object
+): Promise<void> {
+    const parent = tasksClient.queuePath(project, LOCATION, QUEUE);
+    const functionUrl = `https://${LOCATION}-${project}.cloudfunctions.net/handleShiftReminder`;
+    await tasksClient.createTask({
+        parent,
+        task: {
+            name: `${parent}/tasks/${taskId}`,
+            httpRequest: {
+                httpMethod: 'POST',
+                url: functionUrl,
+                headers: { 'Content-Type': 'application/json' },
+                body: Buffer.from(JSON.stringify(payload)).toString('base64'),
+            },
+            scheduleTime: { seconds: Math.floor(scheduleTime.getTime() / 1000) },
+        },
+    });
+}
+
+// Trigger: quando l'admin salva i turni, pianifica i task
+export const onAssignedShiftsUpdated = onDocumentWritten(
+    { document: 'assignedShifts/all', region: LOCATION },
+    async (event) => {
+        const project = process.env.GCLOUD_PROJECT!;
         const now = new Date();
-        const today = todayItaly(now);
+        const todayStr = todayItaly(now);
 
-        const snap = await db.doc('assignedShifts/all').get();
-        if (!snap.exists) return;
+        const shifts: AssignedShift[] = event.data?.after?.data()?.shifts ?? [];
 
-        const shifts: AssignedShift[] = snap.data()?.shifts ?? [];
+        for (const shift of shifts) {
+            if (shift.date < todayStr) continue;
 
-        for (const shift of shifts.filter(s => s.date === today)) {
             const [h] = shift.startTime.split(':').map(Number);
             if (h < 16) continue;
 
-            const shiftStartUtc = romeLocalToUtc(shift.date, shift.startTime);
-            const minutesUntil = (shiftStartUtc.getTime() - now.getTime()) / 60000;
+            const safeId = shift.id.replace(/[^a-zA-Z0-9_-]/g, '-');
 
-            if (minutesUntil >= 9.5 && minutesUntil < 10.5) {
-                const alreadyClockedIn = (await db.doc(`activeShifts/${shift.userId}`).get()).exists;
-                if (alreadyClockedIn) continue;
+            // --- Task promemoria inizio turno ---
+            const startReminderTime = new Date(
+                romeLocalToUtc(shift.date, shift.startTime).getTime() - 10 * 60 * 1000
+            );
+            const startTaskId = `${safeId}-start`;
+            await deleteTask(project, startTaskId);
+            if (startReminderTime > now) {
+                await createTask(project, startTaskId, startReminderTime, {
+                    userId: shift.userId,
+                    type: 'start',
+                    startTime: shift.startTime,
+                });
+            }
 
-                await sendPush(
-                    shift.userId,
-                    'Promemoria Timbratura',
-                    `Tra 10 minuti inizia il tuo turno (${shift.startTime}). Ricordati di timbrare!`
-                );
+            // --- Task promemoria fine turno ---
+            if (shift.endTime) {
+                const endUtc = romeLocalToUtc(shift.date, shift.endTime);
+                const endTaskId = `${safeId}-end`;
+                await deleteTask(project, endTaskId);
+                if (endUtc > now) {
+                    await createTask(project, endTaskId, endUtc, {
+                        userId: shift.userId,
+                        type: 'end',
+                        endTime: shift.endTime,
+                    });
+                }
             }
         }
     }
 );
 
-export const checkLateClockout = onSchedule(
-    { schedule: 'every 15 minutes', timeZone: 'Europe/Rome' },
-    async () => {
-        const now = new Date();
-        const { hours, minutes } = italianTime(now);
+// Handler chiamato da Cloud Tasks al momento giusto
+export const handleShiftReminder = onRequest(
+    { region: LOCATION },
+    async (req, res) => {
+        const { userId, type, startTime, endTime } = req.body as {
+            userId: string;
+            type: 'start' | 'end';
+            startTime?: string;
+            endTime?: string;
+        };
 
-        if (hours < 21 || (hours === 21 && minutes < 45)) return;
+        const alreadyClockedIn = (await db.doc(`activeShifts/${userId}`).get()).exists;
 
-        const activeSnap = await db.collection('activeShifts').get();
-        for (const doc of activeSnap.docs) {
+        if (type === 'start' && !alreadyClockedIn) {
             await sendPush(
-                doc.id,
+                userId,
+                'Promemoria Timbratura',
+                `Tra 10 minuti inizia il tuo turno (${startTime}). Ricordati di timbrare!`
+            );
+        } else if (type === 'end' && alreadyClockedIn) {
+            await sendPush(
+                userId,
                 'Uscita non timbrata',
-                "Non hai ancora timbrato l'uscita. Ricordati di farlo!"
+                `Sono le ${endTime}, ricordati di timbrare l'uscita!`
             );
         }
+
+        res.sendStatus(200);
     }
 );
