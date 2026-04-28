@@ -66,10 +66,16 @@ export const checkShiftReminders = onSchedule(
         const shifts: AssignedShift[] = snap.data()?.shifts ?? [];
 
         for (const shift of shifts.filter(s => s.date === today)) {
+            const [h] = shift.startTime.split(':').map(Number);
+            if (h < 16) continue;
+
             const shiftStartUtc = romeLocalToUtc(shift.date, shift.startTime);
             const minutesUntil = (shiftStartUtc.getTime() - now.getTime()) / 60000;
 
             if (minutesUntil >= 9.5 && minutesUntil < 10.5) {
+                const alreadyClockedIn = (await db.doc(`activeShifts/${shift.userId}`).get()).exists;
+                if (alreadyClockedIn) continue;
+
                 await sendPush(
                     shift.userId,
                     'Promemoria Timbratura',

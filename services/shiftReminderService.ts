@@ -37,6 +37,8 @@ export const scheduleShiftReminders = (
         if (shift.date !== today) continue;
 
         const [h, m] = shift.startTime.split(':').map(Number);
+        if (h < 16) continue;
+
         const shiftStart = new Date(now);
         shiftStart.setHours(h, m, 0, 0);
 
@@ -44,6 +46,7 @@ export const scheduleShiftReminders = (
         if (delay <= 0) continue;
 
         const id = setTimeout(() => {
+            if (getHasActiveShift()) return;
             fireNotification(
                 'Promemoria Timbratura',
                 `Tra 10 minuti inizia il tuo turno (${shift.startTime}). Ricordati di timbrare l'entrata!`
