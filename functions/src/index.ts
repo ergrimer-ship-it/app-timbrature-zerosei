@@ -160,6 +160,23 @@ export const scheduleDailyShiftTasks = onSchedule(
     }
 );
 
+// Fallback: ogni 15 min dalle 21:45 per chi non ha timbrato l'uscita
+export const checkLateClockout = onSchedule(
+    { schedule: '45,0,15,30 21-23 * * *', timeZone: 'Europe/Rome', region: LOCATION },
+    async () => {
+        const activeSnap = await db.collection('activeShifts').get();
+        const project = process.env.GCLOUD_PROJECT!;
+        void project;
+        for (const doc of activeSnap.docs) {
+            await sendPush(
+                doc.id,
+                'Uscita non timbrata',
+                "Non hai ancora timbrato l'uscita. Ricordati di farlo!"
+            );
+        }
+    }
+);
+
 // Handler chiamato da Cloud Tasks al momento giusto
 export const handleShiftReminder = onRequest(
     { region: LOCATION, invoker: 'public' },
