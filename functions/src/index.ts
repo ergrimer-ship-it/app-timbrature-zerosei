@@ -1,4 +1,5 @@
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onRequest } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import { CloudTasksClient } from '@google-cloud/tasks';
@@ -10,6 +11,7 @@ const tasksClient = new CloudTasksClient();
 
 const LOCATION = 'us-central1';
 const QUEUE = 'shift-reminders';
+const MAX_SCHEDULE_HOURS = 29 * 24; // Cloud Tasks max è 30 giorni, usiamo 29
 
 interface AssignedShift {
     id: string;
@@ -23,7 +25,6 @@ function todayItaly(now: Date): string {
     return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Rome' }).format(now);
 }
 
-// Converte data+ora locale Rome in UTC, gestisce CET/CEST automaticamente
 function romeLocalToUtc(dateStr: string, timeStr: string): Date {
     const guessUtc = new Date(`${dateStr}T${timeStr}:00Z`);
     const romeStr = new Intl.DateTimeFormat('sv-SE', {
@@ -53,7 +54,7 @@ async function deleteTask(project: string, taskId: string): Promise<void> {
     try {
         await tasksClient.deleteTask({ name: `${parent}/tasks/${taskId}` });
     } catch {
-        // task non esiste, ignora
+        // task non esiste o già eliminato, ignora
     }
 }
 
@@ -65,73 +66,103 @@ async function createTask(
 ): Promise<void> {
     const parent = tasksClient.queuePath(project, LOCATION, QUEUE);
     const functionUrl = `https://${LOCATION}-${project}.cloudfunctions.net/handleShiftReminder`;
-    await tasksClient.createTask({
-        parent,
-        task: {
-            name: `${parent}/tasks/${taskId}`,
-            httpRequest: {
-                httpMethod: 'POST',
-                url: functionUrl,
-                headers: { 'Content-Type': 'application/json' },
-                body: Buffer.from(JSON.stringify(payload)).toString('base64'),
+    try {
+        await tasksClient.createTask({
+            parent,
+            task: {
+                name: `${parent}/tasks/${taskId}`,
+                httpRequest: {
+                    httpMethod: 'POST',
+                    url: functionUrl,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: Buffer.from(JSON.stringify(payload)).toString('base64'),
+                },
+                scheduleTime: { seconds: Math.floor(scheduleTime.getTime() / 1000) },
             },
-            scheduleTime: { seconds: Math.floor(scheduleTime.getTime() / 1000) },
-        },
-    });
+        });
+    } catch (err: any) {
+        // ALREADY_EXISTS = task con stesso nome esiste ancora (deduplication 1h), ignora
+        if (err.code !== 6) throw err;
+    }
 }
 
-// Trigger: quando l'admin salva i turni, pianifica i task
+// Pianifica task per un singolo turno (se entro 29 giorni)
+async function scheduleShiftTasks(project: string, shift: AssignedShift, now: Date): Promise<void> {
+    const [h] = shift.startTime.split(':').map(Number);
+    if (h < 16) return;
+
+    const maxFuture = new Date(now.getTime() + MAX_SCHEDULE_HOURS * 60 * 60 * 1000);
+    const safeId = shift.id.replace(/[^a-zA-Z0-9_-]/g, '-');
+
+    // Task promemoria inizio (startTime - 10 min)
+    const startReminderTime = new Date(
+        romeLocalToUtc(shift.date, shift.startTime).getTime() - 10 * 60 * 1000
+    );
+    if (startReminderTime > now && startReminderTime <= maxFuture) {
+        // Nome include i minuti di schedule → unico per orario, evita conflitti su cambio orario
+        const startMin = Math.floor(startReminderTime.getTime() / 60000);
+        const startTaskId = `${safeId}-start-${startMin}`;
+        await deleteTask(project, `${safeId}-start`); // pulizia vecchio formato
+        await createTask(project, startTaskId, startReminderTime, {
+            userId: shift.userId,
+            type: 'start',
+            startTime: shift.startTime,
+        });
+    }
+
+    // Task promemoria fine turno
+    if (shift.endTime) {
+        const endUtc = romeLocalToUtc(shift.date, shift.endTime);
+        if (endUtc > now && endUtc <= maxFuture) {
+            const endMin = Math.floor(endUtc.getTime() / 60000);
+            const endTaskId = `${safeId}-end-${endMin}`;
+            await deleteTask(project, `${safeId}-end`); // pulizia vecchio formato
+            await createTask(project, endTaskId, endUtc, {
+                userId: shift.userId,
+                type: 'end',
+                endTime: shift.endTime,
+            });
+        }
+    }
+}
+
+// Trigger: quando l'admin salva i turni, pianifica i task entro 29 giorni
 export const onAssignedShiftsUpdated = onDocumentWritten(
     { document: 'assignedShifts/all', region: LOCATION },
     async (event) => {
         const project = process.env.GCLOUD_PROJECT!;
         const now = new Date();
         const todayStr = todayItaly(now);
-
         const shifts: AssignedShift[] = event.data?.after?.data()?.shifts ?? [];
 
         for (const shift of shifts) {
             if (shift.date < todayStr) continue;
+            await scheduleShiftTasks(project, shift, now);
+        }
+    }
+);
 
-            const [h] = shift.startTime.split(':').map(Number);
-            if (h < 16) continue;
+// Ogni notte a mezzanotte: pianifica i turni che entrano nella finestra dei 29 giorni
+export const scheduleDailyShiftTasks = onSchedule(
+    { schedule: '0 0 * * *', timeZone: 'Europe/Rome', region: LOCATION },
+    async () => {
+        const project = process.env.GCLOUD_PROJECT!;
+        const now = new Date();
+        const todayStr = todayItaly(now);
+        const snap = await db.doc('assignedShifts/all').get();
+        if (!snap.exists) return;
 
-            const safeId = shift.id.replace(/[^a-zA-Z0-9_-]/g, '-');
-
-            // --- Task promemoria inizio turno ---
-            const startReminderTime = new Date(
-                romeLocalToUtc(shift.date, shift.startTime).getTime() - 10 * 60 * 1000
-            );
-            const startTaskId = `${safeId}-start`;
-            await deleteTask(project, startTaskId);
-            if (startReminderTime > now) {
-                await createTask(project, startTaskId, startReminderTime, {
-                    userId: shift.userId,
-                    type: 'start',
-                    startTime: shift.startTime,
-                });
-            }
-
-            // --- Task promemoria fine turno ---
-            if (shift.endTime) {
-                const endUtc = romeLocalToUtc(shift.date, shift.endTime);
-                const endTaskId = `${safeId}-end`;
-                await deleteTask(project, endTaskId);
-                if (endUtc > now) {
-                    await createTask(project, endTaskId, endUtc, {
-                        userId: shift.userId,
-                        type: 'end',
-                        endTime: shift.endTime,
-                    });
-                }
-            }
+        const shifts: AssignedShift[] = snap.data()?.shifts ?? [];
+        for (const shift of shifts) {
+            if (shift.date < todayStr) continue;
+            await scheduleShiftTasks(project, shift, now);
         }
     }
 );
 
 // Handler chiamato da Cloud Tasks al momento giusto
 export const handleShiftReminder = onRequest(
-    { region: LOCATION },
+    { region: LOCATION, invoker: 'public' },
     async (req, res) => {
         const { userId, type, startTime, endTime } = req.body as {
             userId: string;
