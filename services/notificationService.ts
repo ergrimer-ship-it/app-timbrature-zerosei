@@ -112,13 +112,22 @@ export const setupForegroundMessageListener = () => {
         // Show notification
         if (payload.notification) {
             const { title, body } = payload.notification;
-
             if (Notification.permission === 'granted') {
-                new Notification(title || 'Notifica', {
-                    body: body || '',
-                    icon: '/icon-192.png',
-                    badge: '/icon-192.png'
-                });
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.ready.then(reg => {
+                        reg.showNotification(title || 'Notifica', {
+                            body: body || '',
+                            icon: '/icon-192.png',
+                            badge: '/icon-192.png',
+                        });
+                    });
+                } else {
+                    new Notification(title || 'Notifica', {
+                        body: body || '',
+                        icon: '/icon-192.png',
+                        badge: '/icon-192.png',
+                    });
+                }
             }
         }
     });

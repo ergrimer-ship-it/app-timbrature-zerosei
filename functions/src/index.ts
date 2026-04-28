@@ -12,7 +12,6 @@ interface AssignedShift {
     startTime: string;  // HH:mm
 }
 
-// Orario italiano corrente come { hours, minutes }
 function italianTime(now: Date): { hours: number; minutes: number } {
     const parts = new Intl.DateTimeFormat('it-IT', {
         timeZone: 'Europe/Rome',
@@ -26,9 +25,21 @@ function italianTime(now: Date): { hours: number; minutes: number } {
     };
 }
 
-// Data odierna in formato YYYY-MM-DD secondo fuso orario italiano
 function todayItaly(now: Date): string {
     return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Rome' }).format(now);
+}
+
+// Converte data+ora locale Rome in UTC, gestisce CET/CEST automaticamente
+function romeLocalToUtc(dateStr: string, timeStr: string): Date {
+    const guessUtc = new Date(`${dateStr}T${timeStr}:00Z`);
+    const romeStr = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Europe/Rome',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false,
+    }).format(guessUtc);
+    const romeAsUtc = new Date(romeStr.replace(' ', 'T') + 'Z');
+    return new Date(2 * guessUtc.getTime() - romeAsUtc.getTime());
 }
 
 async function sendPush(userId: string, title: string, body: string): Promise<void> {
@@ -39,12 +50,10 @@ async function sendPush(userId: string, title: string, body: string): Promise<vo
     try {
         await messaging.send({ token, notification: { title, body } });
     } catch (err: any) {
-        // Token scaduto o non valido — lo ignoriamo
         console.warn(`FCM send failed for user ${userId}:`, err.message);
     }
 }
 
-// Ogni minuto: notifica 10 min prima del turno assegnato
 export const checkShiftReminders = onSchedule(
     { schedule: 'every 1 minutes', timeZone: 'Europe/Rome' },
     async () => {
@@ -55,16 +64,11 @@ export const checkShiftReminders = onSchedule(
         if (!snap.exists) return;
 
         const shifts: AssignedShift[] = snap.data()?.shifts ?? [];
-        const todayShifts = shifts.filter(s => s.date === today);
 
-        for (const shift of todayShifts) {
-            // Costruiamo l'orario del turno nel timezone italiano
-            const todayStr = todayItaly(now);
-            const shiftStartUtc = new Date(`${todayStr}T${shift.startTime}:00+02:00`);
-
+        for (const shift of shifts.filter(s => s.date === today)) {
+            const shiftStartUtc = romeLocalToUtc(shift.date, shift.startTime);
             const minutesUntil = (shiftStartUtc.getTime() - now.getTime()) / 60000;
 
-            // Finestra: tra 9.5 e 10.5 minuti (evita invii doppi)
             if (minutesUntil >= 9.5 && minutesUntil < 10.5) {
                 await sendPush(
                     shift.userId,
@@ -76,14 +80,12 @@ export const checkShiftReminders = onSchedule(
     }
 );
 
-// Ogni 15 minuti dalle 21:45: notifica se non hai timbrato l'uscita
 export const checkLateClockout = onSchedule(
     { schedule: 'every 15 minutes', timeZone: 'Europe/Rome' },
     async () => {
         const now = new Date();
         const { hours, minutes } = italianTime(now);
 
-        // Solo dopo le 21:45
         if (hours < 21 || (hours === 21 && minutes < 45)) return;
 
         const activeSnap = await db.collection('activeShifts').get();

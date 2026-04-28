@@ -30,7 +30,7 @@ export const scheduleShiftReminders = (
     clearAllReminders();
 
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Rome' }).format(now);
 
     // Notifica 10 min prima di ogni turno assegnato oggi
     for (const shift of assignedShifts) {
