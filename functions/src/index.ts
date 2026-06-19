@@ -37,27 +37,61 @@ function romeLocalToUtc(dateStr: string, timeStr: string): Date {
     return new Date(2 * guessUtc.getTime() - romeAsUtc.getTime());
 }
 
-async function sendPushToAllAdmins(title: string, body: string): Promise<void> {
-    const snapshot = await db.collection('users').where('isAdmin', '==', true).get();
-    const sends = snapshot.docs
-        .map(d => d.data()?.fcmToken as string | undefined)
-        .filter((token): token is string => !!token)
-        .map(token =>
-            messaging.send({ token, notification: { title, body } })
-                .catch((err: any) => console.warn('FCM admin push failed:', err.message))
-        );
-    await Promise.all(sends);
+/** Tokens di un documento utente — supporta sia il vecchio campo singolo che il nuovo array */
+function getTokensFromDoc(data: FirebaseFirestore.DocumentData): string[] {
+    const arr: string[] = data.fcmTokens ?? [];
+    if (arr.length === 0 && data.fcmToken) return [data.fcmToken];
+    return arr;
 }
 
+/** Invia push a tutti gli admin; rimuove token scaduti */
+async function sendPushToAllAdmins(title: string, body: string): Promise<void> {
+    const snapshot = await db.collection('users').where('isAdmin', '==', true).get();
+    await Promise.all(snapshot.docs.map(async (userDoc) => {
+        const tokens = getTokensFromDoc(userDoc.data());
+        const stale: string[] = [];
+        await Promise.all(tokens.map(async (token) => {
+            try {
+                await messaging.send({ token, notification: { title, body } });
+            } catch (err: any) {
+                if (err.code === 'messaging/registration-token-not-registered' ||
+                    err.code === 'messaging/invalid-registration-token') {
+                    stale.push(token);
+                } else {
+                    console.warn('FCM admin push failed:', err.message);
+                }
+            }
+        }));
+        if (stale.length > 0) {
+            await userDoc.ref.update({
+                fcmTokens: admin.firestore.FieldValue.arrayRemove(...stale),
+            });
+        }
+    }));
+}
+
+/** Invia push a un utente specifico; rimuove token scaduti */
 async function sendPush(userId: string, title: string, body: string): Promise<void> {
     const userSnap = await db.doc(`users/${userId}`).get();
     if (!userSnap.exists) return;
-    const token: string | undefined = userSnap.data()?.fcmToken;
-    if (!token) return;
-    try {
-        await messaging.send({ token, notification: { title, body } });
-    } catch (err: any) {
-        console.warn(`FCM send failed for user ${userId}:`, err.message);
+    const tokens = getTokensFromDoc(userSnap.data()!);
+    const stale: string[] = [];
+    await Promise.all(tokens.map(async (token) => {
+        try {
+            await messaging.send({ token, notification: { title, body } });
+        } catch (err: any) {
+            if (err.code === 'messaging/registration-token-not-registered' ||
+                err.code === 'messaging/invalid-registration-token') {
+                stale.push(token);
+            } else {
+                console.warn(`FCM send failed for user ${userId}:`, err.message);
+            }
+        }
+    }));
+    if (stale.length > 0) {
+        await userSnap.ref.update({
+            fcmTokens: admin.firestore.FieldValue.arrayRemove(...stale),
+        });
     }
 }
 
