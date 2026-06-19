@@ -55,7 +55,7 @@ export const UserShiftsView: React.FC<UserShiftsViewProps> = ({ assignedShifts }
                                 <p className="font-semibold">
                                     {localDate.toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: 'short' })}
                                 </p>
-                                <p className="text-sm font-mono bg-blue-900/50 px-2 py-1 rounded">{shift.startTime}</p>
+                                <p className="text-sm font-mono bg-blue-900/50 px-2 py-1 rounded">{shift.startTime}{shift.endTime ? ` – ${shift.endTime}` : ''}</p>
                             </div>
                         )
                     })

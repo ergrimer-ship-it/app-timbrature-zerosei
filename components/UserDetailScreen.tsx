@@ -1,20 +1,22 @@
 import React, { useState } from 'react';
-import type { User, Shift } from '../types';
+import type { User, Shift, AssignedShift } from '../types';
 import { Calendar } from './Calendar';
 import { EmployeeNotesScreen } from './EmployeeNotesScreen';
-import { ChevronLeftIcon, CalendarIcon, FileTextIcon } from './icons';
+import { UserShiftsView } from './UserShiftsView';
+import { ChevronLeftIcon, CalendarIcon, FileTextIcon, ClipboardListIcon } from './icons';
 import { getUserPassword } from '../services/dbService';
 
 interface UserDetailScreenProps {
     selectedUser: User;
     userShifts: Shift[];
+    assignedShifts: AssignedShift[];
     onBack: () => void;
     onUpdateShift: (updatedShift: Shift) => void;
     onDeleteShift: (shiftId: string) => void;
 }
 
-export const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ selectedUser, userShifts, onBack, onUpdateShift, onDeleteShift }) => {
-    const [activeTab, setActiveTab] = useState<'calendar' | 'notes'>('calendar');
+export const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ selectedUser, userShifts, assignedShifts, onBack, onUpdateShift, onDeleteShift }) => {
+    const [activeTab, setActiveTab] = useState<'calendar' | 'shifts' | 'notes'>('calendar');
     const [password, setPassword] = useState<string | null>(null);
     const [loadingPassword, setLoadingPassword] = useState(false);
 
@@ -51,7 +53,7 @@ export const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ selectedUser
                 </div>
 
                 {/* Tab Navigation */}
-                <div className="flex gap-2 mt-6">
+                <div className="flex gap-2 mt-6 flex-wrap">
                     <button
                         onClick={() => setActiveTab('calendar')}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'calendar'
@@ -61,6 +63,16 @@ export const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ selectedUser
                     >
                         <CalendarIcon className="w-5 h-5" />
                         Calendario
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('shifts')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'shifts'
+                            ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/50'
+                            : 'bg-slate-800/30 text-slate-400 border border-slate-700/50 hover:bg-slate-800/50'
+                            }`}
+                    >
+                        <ClipboardListIcon className="w-5 h-5" />
+                        Turni Programmati
                     </button>
                     <button
                         onClick={() => setActiveTab('notes')}
@@ -82,6 +94,8 @@ export const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ selectedUser
                         onUpdateShift={onUpdateShift}
                         onDeleteShift={onDeleteShift}
                     />
+                ) : activeTab === 'shifts' ? (
+                    <UserShiftsView assignedShifts={assignedShifts} />
                 ) : (
                     <EmployeeNotesScreen
                         selectedUser={selectedUser}

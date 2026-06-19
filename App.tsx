@@ -56,7 +56,9 @@ const App: React.FC = () => {
     // Function to load all users from Firestore
     const loadUsers = useCallback(async () => {
         const all = await getAllUsers();
-        setUsers(all);
+        setUsers([...all].sort((a, b) =>
+            `${a.surname} ${a.name}`.localeCompare(`${b.surname} ${b.name}`, 'it')
+        ));
     }, []);
 
     // Load users from Firestore on mount and listen to auth state changes
@@ -408,6 +410,7 @@ const App: React.FC = () => {
                     <UserDetailScreen
                         selectedUser={selectedUser!}
                         userShifts={shifts}
+                        assignedShifts={assignedShifts.filter(s => s.userId === selectedUser!.id)}
                         onBack={handleBackToAdmin}
                         onUpdateShift={(updatedShift) => handleUpdateShift(selectedUser!.id, updatedShift)}
                         onDeleteShift={(id) => handleDeleteShift(selectedUser!.id, id)}
