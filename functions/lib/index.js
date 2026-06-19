@@ -1,27 +1,31 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.checkLateClockout = exports.checkShiftReminders = void 0;
+exports.handleShiftReminder = exports.checkLateClockout = exports.scheduleDailyShiftTasks = exports.onAssignedShiftsUpdated = void 0;
+const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
+const https_1 = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
+const tasks_1 = require("@google-cloud/tasks");
 admin.initializeApp();
 const db = admin.firestore();
 const messaging = admin.messaging();
-// Orario italiano corrente come { hours, minutes }
-function italianTime(now) {
-    const parts = new Intl.DateTimeFormat('it-IT', {
-        timeZone: 'Europe/Rome',
-        hour: 'numeric',
-        minute: 'numeric',
-        hour12: false,
-    }).formatToParts(now);
-    return {
-        hours: parseInt(parts.find(p => p.type === 'hour').value),
-        minutes: parseInt(parts.find(p => p.type === 'minute').value),
-    };
-}
-// Data odierna in formato YYYY-MM-DD secondo fuso orario italiano
+const tasksClient = new tasks_1.CloudTasksClient();
+const LOCATION = 'us-central1';
+const QUEUE = 'shift-reminders';
+const MAX_SCHEDULE_HOURS = 29 * 24; // Cloud Tasks max è 30 giorni, usiamo 29
 function todayItaly(now) {
     return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Rome' }).format(now);
+}
+function romeLocalToUtc(dateStr, timeStr) {
+    const guessUtc = new Date(`${dateStr}T${timeStr}:00Z`);
+    const romeStr = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Europe/Rome',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false,
+    }).format(guessUtc);
+    const romeAsUtc = new Date(romeStr.replace(' ', 'T') + 'Z');
+    return new Date(2 * guessUtc.getTime() - romeAsUtc.getTime());
 }
 async function sendPush(userId, title, body) {
     var _a;
@@ -35,41 +39,125 @@ async function sendPush(userId, title, body) {
         await messaging.send({ token, notification: { title, body } });
     }
     catch (err) {
-        // Token scaduto o non valido — lo ignoriamo
         console.warn(`FCM send failed for user ${userId}:`, err.message);
     }
 }
-// Ogni minuto: notifica 10 min prima del turno assegnato
-exports.checkShiftReminders = (0, scheduler_1.onSchedule)({ schedule: 'every 1 minutes', timeZone: 'Europe/Rome' }, async () => {
-    var _a, _b;
+async function deleteTask(project, taskId) {
+    const parent = tasksClient.queuePath(project, LOCATION, QUEUE);
+    try {
+        await tasksClient.deleteTask({ name: `${parent}/tasks/${taskId}` });
+    }
+    catch (_a) {
+        // task non esiste o già eliminato, ignora
+    }
+}
+async function createTask(project, taskId, scheduleTime, payload) {
+    const parent = tasksClient.queuePath(project, LOCATION, QUEUE);
+    const functionUrl = `https://${LOCATION}-${project}.cloudfunctions.net/handleShiftReminder`;
+    try {
+        await tasksClient.createTask({
+            parent,
+            task: {
+                name: `${parent}/tasks/${taskId}`,
+                httpRequest: {
+                    httpMethod: 'POST',
+                    url: functionUrl,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: Buffer.from(JSON.stringify(payload)).toString('base64'),
+                },
+                scheduleTime: { seconds: Math.floor(scheduleTime.getTime() / 1000) },
+            },
+        });
+    }
+    catch (err) {
+        // ALREADY_EXISTS = task con stesso nome esiste ancora (deduplication 1h), ignora
+        if (err.code !== 6)
+            throw err;
+    }
+}
+// Pianifica task per un singolo turno (se entro 29 giorni)
+async function scheduleShiftTasks(project, shift, now) {
+    const [h] = shift.startTime.split(':').map(Number);
+    if (h < 16)
+        return;
+    const maxFuture = new Date(now.getTime() + MAX_SCHEDULE_HOURS * 60 * 60 * 1000);
+    const safeId = shift.id.replace(/[^a-zA-Z0-9_-]/g, '-');
+    // Task promemoria inizio (startTime - 10 min)
+    const startReminderTime = new Date(romeLocalToUtc(shift.date, shift.startTime).getTime() - 10 * 60 * 1000);
+    if (startReminderTime > now && startReminderTime <= maxFuture) {
+        // Nome include i minuti di schedule → unico per orario, evita conflitti su cambio orario
+        const startMin = Math.floor(startReminderTime.getTime() / 60000);
+        const startTaskId = `${safeId}-start-${startMin}`;
+        await deleteTask(project, `${safeId}-start`); // pulizia vecchio formato
+        await createTask(project, startTaskId, startReminderTime, {
+            userId: shift.userId,
+            type: 'start',
+            startTime: shift.startTime,
+        });
+    }
+    // Task promemoria fine turno
+    if (shift.endTime) {
+        const endUtc = romeLocalToUtc(shift.date, shift.endTime);
+        if (endUtc > now && endUtc <= maxFuture) {
+            const endMin = Math.floor(endUtc.getTime() / 60000);
+            const endTaskId = `${safeId}-end-${endMin}`;
+            await deleteTask(project, `${safeId}-end`); // pulizia vecchio formato
+            await createTask(project, endTaskId, endUtc, {
+                userId: shift.userId,
+                type: 'end',
+                endTime: shift.endTime,
+            });
+        }
+    }
+}
+// Trigger: quando l'admin salva i turni, pianifica i task entro 29 giorni
+exports.onAssignedShiftsUpdated = (0, firestore_1.onDocumentWritten)({ document: 'assignedShifts/all', region: LOCATION }, async (event) => {
+    var _a, _b, _c, _d;
+    const project = process.env.GCLOUD_PROJECT;
     const now = new Date();
-    const today = todayItaly(now);
+    const todayStr = todayItaly(now);
+    const shifts = (_d = (_c = (_b = (_a = event.data) === null || _a === void 0 ? void 0 : _a.after) === null || _b === void 0 ? void 0 : _b.data()) === null || _c === void 0 ? void 0 : _c.shifts) !== null && _d !== void 0 ? _d : [];
+    for (const shift of shifts) {
+        if (shift.date < todayStr)
+            continue;
+        await scheduleShiftTasks(project, shift, now);
+    }
+});
+// Ogni notte a mezzanotte: pianifica i turni che entrano nella finestra dei 29 giorni
+exports.scheduleDailyShiftTasks = (0, scheduler_1.onSchedule)({ schedule: '0 0 * * *', timeZone: 'Europe/Rome', region: LOCATION }, async () => {
+    var _a, _b;
+    const project = process.env.GCLOUD_PROJECT;
+    const now = new Date();
+    const todayStr = todayItaly(now);
     const snap = await db.doc('assignedShifts/all').get();
     if (!snap.exists)
         return;
     const shifts = (_b = (_a = snap.data()) === null || _a === void 0 ? void 0 : _a.shifts) !== null && _b !== void 0 ? _b : [];
-    const todayShifts = shifts.filter(s => s.date === today);
-    for (const shift of todayShifts) {
-        // Costruiamo l'orario del turno nel timezone italiano
-        const todayStr = todayItaly(now);
-        const shiftStartUtc = new Date(`${todayStr}T${shift.startTime}:00+02:00`);
-        const minutesUntil = (shiftStartUtc.getTime() - now.getTime()) / 60000;
-        // Finestra: tra 9.5 e 10.5 minuti (evita invii doppi)
-        if (minutesUntil >= 9.5 && minutesUntil < 10.5) {
-            await sendPush(shift.userId, 'Promemoria Timbratura', `Tra 10 minuti inizia il tuo turno (${shift.startTime}). Ricordati di timbrare!`);
-        }
+    for (const shift of shifts) {
+        if (shift.date < todayStr)
+            continue;
+        await scheduleShiftTasks(project, shift, now);
     }
 });
-// Ogni 15 minuti dalle 21:45: notifica se non hai timbrato l'uscita
-exports.checkLateClockout = (0, scheduler_1.onSchedule)({ schedule: 'every 15 minutes', timeZone: 'Europe/Rome' }, async () => {
-    const now = new Date();
-    const { hours, minutes } = italianTime(now);
-    // Solo dopo le 21:45
-    if (hours < 21 || (hours === 21 && minutes < 45))
-        return;
+// Fallback: ogni 15 min dalle 21:45 per chi non ha timbrato l'uscita
+exports.checkLateClockout = (0, scheduler_1.onSchedule)({ schedule: '45,0,15,30 21-23 * * *', timeZone: 'Europe/Rome', region: LOCATION }, async () => {
     const activeSnap = await db.collection('activeShifts').get();
+    const project = process.env.GCLOUD_PROJECT;
+    void project;
     for (const doc of activeSnap.docs) {
         await sendPush(doc.id, 'Uscita non timbrata', "Non hai ancora timbrato l'uscita. Ricordati di farlo!");
     }
+});
+// Handler chiamato da Cloud Tasks al momento giusto
+exports.handleShiftReminder = (0, https_1.onRequest)({ region: LOCATION, invoker: 'public' }, async (req, res) => {
+    const { userId, type, startTime, endTime } = req.body;
+    const alreadyClockedIn = (await db.doc(`activeShifts/${userId}`).get()).exists;
+    if (type === 'start' && !alreadyClockedIn) {
+        await sendPush(userId, 'Promemoria Timbratura', `Tra 10 minuti inizia il tuo turno (${startTime}). Ricordati di timbrare!`);
+    }
+    else if (type === 'end' && alreadyClockedIn) {
+        await sendPush(userId, 'Uscita non timbrata', `Sono le ${endTime}, ricordati di timbrare l'uscita!`);
+    }
+    res.sendStatus(200);
 });
 //# sourceMappingURL=index.js.map

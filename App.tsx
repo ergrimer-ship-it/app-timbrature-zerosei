@@ -41,6 +41,10 @@ const App: React.FC = () => {
     const activeShiftRef = useRef<Shift | null>(null);
     useEffect(() => { activeShiftRef.current = activeShift; }, [activeShift]);
 
+    // Refs for notification listener cleanup
+    const notifUnsubRef = useRef<(() => void) | null>(null);
+    const fcmListenerActive = useRef(false);
+
     // Schedule shift reminders whenever user or assigned shifts change
     useEffect(() => {
         if (!user || user.isAdmin) { clearAllReminders(); return; }
@@ -60,8 +64,20 @@ const App: React.FC = () => {
         const unsubAuth = subscribeAuth(async (u) => {
             setUser(u);
             if (u) {
+                // Setup FCM once per session (login or page refresh)
+                if (!fcmListenerActive.current) {
+                    await requestNotificationPermission(u.id);
+                    setupForegroundMessageListener();
+                    fcmListenerActive.current = true;
+                }
+
+                // Setup Firestore notification listener (cleanup previous if any)
+                notifUnsubRef.current?.();
                 if (u.isAdmin) {
                     setViewMode('live');
+                    notifUnsubRef.current = listenToAdminNotifications((notification) => {
+                        showBrowserNotification('Timbratura Dipendente', notification.message);
+                    });
                 } else {
                     setViewMode('dashboard');
                     // Auto-load shifts on session restore (no need to re-login)
@@ -71,7 +87,17 @@ const App: React.FC = () => {
                     } catch (error) {
                         console.error('Failed to auto-load shifts:', error);
                     }
+                    notifUnsubRef.current = listenToAdminNotifications((notification) => {
+                        if (notification.userId === u.id && notification.type === 'document_upload') {
+                            showBrowserNotification('Nuovo Documento', notification.message);
+                        }
+                    });
                 }
+            } else {
+                // Logout: cleanup listeners and reset refs
+                notifUnsubRef.current?.();
+                notifUnsubRef.current = null;
+                fcmListenerActive.current = false;
             }
             // Mark app as ready only AFTER Firebase has responded
             // This prevents the login screen from flashing on returning users
@@ -163,41 +189,13 @@ const App: React.FC = () => {
 
             if (user.isAdmin) {
                 setViewMode('live');
-
-                // Request notification permission for admin
-                await requestNotificationPermission(user.id);
-                setupForegroundMessageListener();
-
-                // Setup notification listener for admins
-                listenToAdminNotifications((notification) => {
-                    console.log('New notification:', notification);
-                    showBrowserNotification(
-                        'Timbratura Dipendente',
-                        notification.message
-                    );
-                });
             } else {
                 setViewMode('dashboard');
                 // Load shifts from Firestore
                 const userShifts = await getShifts(user.id);
                 setShifts(userShifts);
                 // Note: activeShift will be loaded via real-time listener in useEffect
-
-                // Request notification permission
-                await requestNotificationPermission(user.id);
-                setupForegroundMessageListener();
-
-                // Setup notification listener for document uploads
-                listenToAdminNotifications((notification) => {
-                    // Only show notifications for this user
-                    if (notification.userId === user.id && notification.type === 'document_upload') {
-                        console.log('New document notification:', notification);
-                        showBrowserNotification(
-                            'Nuovo Documento',
-                            notification.message
-                        );
-                    }
-                });
+                // Note: notification setup handled in subscribeAuth (covers login + session restore)
             }
 
             if (rememberMe) {

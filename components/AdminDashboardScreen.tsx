@@ -75,7 +75,9 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ allU
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {allUsers.length > 0 ? (
-                        allUsers.map(user => (
+                        [...allUsers]
+                        .sort((a, b) => `${a.surname} ${a.name}`.localeCompare(`${b.surname} ${b.name}`, 'it'))
+                        .map(user => (
                             <div
                                 key={user.id}
                                 onClick={() => onSelectUser(user)}

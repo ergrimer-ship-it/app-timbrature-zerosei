@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { User, AssignedShift } from '../types';
+import type { User, AssignedShift, FutureLeave } from '../types';
 import { ChevronLeftIcon, ChevronRightIcon, TrashIcon, SaveIcon } from './icons';
+import { getFutureLeaves } from '../services/dbService';
 
 interface ShiftPlannerProps {
     allUsers: User[];
@@ -20,10 +21,25 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
     const [currentDate, setCurrentDate] = useState(new Date());
     const [localShifts, setLocalShifts] = useState<AssignedShift[]>([]);
     const [isSaving, setIsSaving] = useState(false);
+    const [leavesByUser, setLeavesByUser] = useState<Record<string, FutureLeave[]>>({});
 
     useEffect(() => {
         setLocalShifts(assignedShifts);
     }, [assignedShifts]);
+
+    useEffect(() => {
+        if (allUsers.length === 0) return;
+        const load = async () => {
+            const result: Record<string, FutureLeave[]> = {};
+            await Promise.all(
+                allUsers
+                    .filter(u => !u.isAdmin)
+                    .map(async u => { result[u.id] = await getFutureLeaves(u.id); })
+            );
+            setLeavesByUser(result);
+        };
+        load();
+    }, [allUsers]);
 
     const changeMonth = (amount: number) => {
         setCurrentDate(prev => {
@@ -61,13 +77,29 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
         return map;
     }, [localShifts, currentDate, daysInMonth]);
 
+    const leavesByDate = useMemo(() => {
+        const map = new Map<string, User[]>();
+        daysInMonth.forEach(day => {
+            const dateStr = toDateKey(day);
+            const usersOnLeave = allUsers.filter(u => {
+                if (u.isAdmin) return false;
+                return (leavesByUser[u.id] ?? []).some(l => {
+                    const end = l.endDate ?? l.startDate;
+                    return l.startDate <= dateStr && dateStr <= end;
+                });
+            });
+            if (usersOnLeave.length > 0) map.set(dateStr, usersOnLeave);
+        });
+        return map;
+    }, [allUsers, leavesByUser, daysInMonth]);
+
     const handleAddShift = (date: string) => {
         const newShift: AssignedShift = {
             id: `shift_${Date.now()}_${Math.random()}`,
             date,
             userId: '',
-            startTime: '16:00',
-            endTime: '23:00',
+            startTime: '18:30',
+            endTime: '21:30',
         };
         setLocalShifts(prev => [...prev, newShift]);
     };
@@ -122,9 +154,18 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
             <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
                 {Array.from(shiftsByDay.entries()).sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime()).map(([date, shifts]) => (
                     <div key={date} className="bg-gray-900/50 p-4 rounded-lg">
-                        <h4 className="font-bold text-lg mb-3 text-blue-300">
+                        <h4 className="font-bold text-lg mb-2 text-blue-300">
                            {new Date(date.replace(/-/g, '/')).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric' })}
                         </h4>
+                        {leavesByDate.has(date) && (
+                            <div className="flex flex-wrap gap-1 mb-3">
+                                {leavesByDate.get(date)!.map(u => (
+                                    <span key={u.id} className="inline-flex items-center gap-1 text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full">
+                                        ✈️ {u.name} {u.surname}: permesso
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                         <div className="space-y-2">
                             {shifts.map(shift => (
                                 <div key={shift.id} className="grid grid-cols-1 sm:grid-cols-[1fr,auto,auto,auto] gap-2 items-center">
