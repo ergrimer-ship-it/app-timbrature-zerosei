@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleShiftReminder = exports.checkLateClockout = exports.scheduleDailyShiftTasks = exports.onAssignedShiftsUpdated = void 0;
+exports.onNewNotification = exports.handleShiftReminder = exports.checkLateClockout = exports.scheduleDailyShiftTasks = exports.onAssignedShiftsUpdated = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const https_1 = require("firebase-functions/v2/https");
@@ -26,6 +26,15 @@ function romeLocalToUtc(dateStr, timeStr) {
     }).format(guessUtc);
     const romeAsUtc = new Date(romeStr.replace(' ', 'T') + 'Z');
     return new Date(2 * guessUtc.getTime() - romeAsUtc.getTime());
+}
+async function sendPushToAllAdmins(title, body) {
+    const snapshot = await db.collection('users').where('isAdmin', '==', true).get();
+    const sends = snapshot.docs
+        .map(d => { var _a; return (_a = d.data()) === null || _a === void 0 ? void 0 : _a.fcmToken; })
+        .filter((token) => !!token)
+        .map(token => messaging.send({ token, notification: { title, body } })
+        .catch((err) => console.warn('FCM admin push failed:', err.message)));
+    await Promise.all(sends);
 }
 async function sendPush(userId, title, body) {
     var _a;
@@ -159,5 +168,17 @@ exports.handleShiftReminder = (0, https_1.onRequest)({ region: LOCATION, invoker
         await sendPush(userId, 'Uscita non timbrata', `Sono le ${endTime}, ricordati di timbrare l'uscita!`);
     }
     res.sendStatus(200);
+});
+// Notifica push agli admin quando un dipendente timbra entrata o uscita
+exports.onNewNotification = (0, firestore_1.onDocumentCreated)({ document: 'notifications/{notifId}', region: LOCATION }, async (event) => {
+    var _a;
+    const data = (_a = event.data) === null || _a === void 0 ? void 0 : _a.data();
+    if (!data)
+        return;
+    const { type, message } = data;
+    if (type !== 'clock_in' && type !== 'clock_out')
+        return;
+    const title = type === 'clock_in' ? 'Timbratura Entrata' : 'Timbratura Uscita';
+    await sendPushToAllAdmins(title, message);
 });
 //# sourceMappingURL=index.js.map

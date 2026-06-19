@@ -1,4 +1,4 @@
-import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { onDocumentWritten, onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onRequest } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
@@ -35,6 +35,18 @@ function romeLocalToUtc(dateStr: string, timeStr: string): Date {
     }).format(guessUtc);
     const romeAsUtc = new Date(romeStr.replace(' ', 'T') + 'Z');
     return new Date(2 * guessUtc.getTime() - romeAsUtc.getTime());
+}
+
+async function sendPushToAllAdmins(title: string, body: string): Promise<void> {
+    const snapshot = await db.collection('users').where('isAdmin', '==', true).get();
+    const sends = snapshot.docs
+        .map(d => d.data()?.fcmToken as string | undefined)
+        .filter((token): token is string => !!token)
+        .map(token =>
+            messaging.send({ token, notification: { title, body } })
+                .catch((err: any) => console.warn('FCM admin push failed:', err.message))
+        );
+    await Promise.all(sends);
 }
 
 async function sendPush(userId: string, title: string, body: string): Promise<void> {
@@ -205,5 +217,18 @@ export const handleShiftReminder = onRequest(
         }
 
         res.sendStatus(200);
+    }
+);
+
+// Notifica push agli admin quando un dipendente timbra entrata o uscita
+export const onNewNotification = onDocumentCreated(
+    { document: 'notifications/{notifId}', region: LOCATION },
+    async (event) => {
+        const data = event.data?.data();
+        if (!data) return;
+        const { type, message } = data as { type: string; message: string };
+        if (type !== 'clock_in' && type !== 'clock_out') return;
+        const title = type === 'clock_in' ? 'Timbratura Entrata' : 'Timbratura Uscita';
+        await sendPushToAllAdmins(title, message);
     }
 );
