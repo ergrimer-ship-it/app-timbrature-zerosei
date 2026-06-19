@@ -23,8 +23,10 @@ service cloud.firestore {
         !('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false
       );
       
-      // Only admins can update/delete users generally
-      allow update, delete: if isAdmin();
+      // Admins can update/delete. Users can update only their fcmToken field.
+      allow update: if isAdmin() ||
+        (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken']));
+      allow delete: if isAdmin();
       
       // Subcollections
       match /shifts/{shiftId} {

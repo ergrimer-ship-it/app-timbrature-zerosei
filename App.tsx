@@ -73,11 +73,10 @@ const App: React.FC = () => {
                     fcmListenerActive.current = true;
                 }
 
-                // Setup Firestore notification listener (solo per sync UI, le push le gestisce FCM)
                 notifUnsubRef.current?.();
                 if (u.isAdmin) {
                     setViewMode('live');
-                    // Listener attivo per aggiornamenti UI futuri (senza mostrare browser notification — ci pensa FCM)
+                    // Listener Firestore solo per aggiornamenti UI futuri (nessuna browser notification — ci pensa FCM)
                     notifUnsubRef.current = listenToAdminNotifications(() => {});
                 } else {
                     setViewMode('dashboard');
@@ -88,8 +87,9 @@ const App: React.FC = () => {
                     } catch (error) {
                         console.error('Failed to auto-load shifts:', error);
                     }
-                    // Documenti: FCM gestisce già la push, il listener qui è solo per sync
-                    notifUnsubRef.current = listenToAdminNotifications(() => {});
+                    // Dipendenti: non leggono la collection notifications (permission denied)
+                    // FCM gestisce tutto via push
+                    notifUnsubRef.current = null;
                 }
             } else {
                 // Logout: cleanup listeners and reset refs

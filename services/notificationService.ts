@@ -104,33 +104,16 @@ export const getAllAdminFCMTokens = async (): Promise<string[]> => {
 };
 
 /**
- * Setup foreground message listener
+ * Setup foreground message listener.
+ * Registra il listener FCM per i messaggi in foreground ma NON mostra
+ * un'ulteriore notifica browser — la mostra già il SW via onBackgroundMessage
+ * quando l'app è in background. Quando l'app è aperta l'utente è già davanti
+ * allo schermo, quindi una notifica browser aggiuntiva causerebbe il doppio.
  */
 export const setupForegroundMessageListener = () => {
     onMessage(messaging, (payload) => {
-        console.log('Foreground message received:', payload);
-
-        // Show notification
-        if (payload.notification) {
-            const { title, body } = payload.notification;
-            if (Notification.permission === 'granted') {
-                if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.ready.then(reg => {
-                        reg.showNotification(title || 'Notifica', {
-                            body: body || '',
-                            icon: '/icon-192.png',
-                            badge: '/icon-192.png',
-                        });
-                    });
-                } else {
-                    new Notification(title || 'Notifica', {
-                        body: body || '',
-                        icon: '/icon-192.png',
-                        badge: '/icon-192.png',
-                    });
-                }
-            }
-        }
+        // Solo log — il SW gestisce la visualizzazione in background
+        console.log('FCM foreground message received (no popup — user is in app):', payload?.notification?.title);
     });
 };
 
