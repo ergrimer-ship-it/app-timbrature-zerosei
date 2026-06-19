@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClockIcon, UsersIcon, CalendarIcon, FileTextIcon, DocumentIcon, CogIcon, ClipboardListIcon } from './icons';
+import { ClockIcon, UsersIcon, CalendarIcon, FileTextIcon, DocumentIcon, CogIcon, ClipboardListIcon, LogoutIcon } from './icons';
 import type { User } from '../types';
 
 interface BottomNavProps {
@@ -11,7 +11,7 @@ interface BottomNavProps {
 
 interface NavItem { id: string; label: string; icon: React.ReactNode; }
 
-export const BottomNav: React.FC<BottomNavProps> = ({ user, currentSection, onNavigate }) => {
+export const BottomNav: React.FC<BottomNavProps> = ({ user, currentSection, onNavigate, onLogout }) => {
     const adminItems: NavItem[] = [
         { id: 'live',         label: 'Live',      icon: <ClockIcon className="w-5 h-5" /> },
         { id: 'users',        label: 'Utenti',    icon: <UsersIcon className="w-5 h-5" /> },
@@ -51,6 +51,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({ user, currentSection, onNa
                     </button>
                 );
             })}
+            <button
+                onClick={onLogout}
+                className="flex-1 flex flex-col items-center justify-center gap-1 py-2 text-red-400 hover:text-red-500 transition-colors"
+            >
+                <div className="p-1.5 rounded-xl">
+                    <LogoutIcon className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-semibold leading-none">Esci</span>
+            </button>
         </nav>
     );
 };
