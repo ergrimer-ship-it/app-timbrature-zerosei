@@ -13,12 +13,11 @@ interface NavItem { id: string; label: string; icon: React.ReactNode; }
 
 export const BottomNav: React.FC<BottomNavProps> = ({ user, currentSection, onNavigate }) => {
     const adminItems: NavItem[] = [
-        { id: 'live',         label: 'Live',      icon: <ClockIcon className="w-4 h-4" /> },
-        { id: 'users',        label: 'Utenti',    icon: <UsersIcon className="w-4 h-4" /> },
-        { id: 'planner',      label: 'Pianifica', icon: <ClipboardListIcon className="w-4 h-4" /> },
-        { id: 'globalShifts', label: 'Panorama',  icon: <CalendarIcon className="w-4 h-4" /> },
-        { id: 'leaveSummary', label: 'Permessi',  icon: <FileTextIcon className="w-4 h-4" /> },
-        { id: 'documents',    label: 'Documenti', icon: <DocumentIcon className="w-4 h-4" /> },
+        { id: 'live',         label: 'Live',      icon: <ClockIcon className="w-5 h-5" /> },
+        { id: 'users',        label: 'Utenti',    icon: <UsersIcon className="w-5 h-5" /> },
+        { id: 'planner',      label: 'Turni',     icon: <ClipboardListIcon className="w-5 h-5" /> },
+        { id: 'leaveSummary', label: 'Permessi',  icon: <FileTextIcon className="w-5 h-5" /> },
+        { id: 'documents',    label: 'Documenti', icon: <DocumentIcon className="w-5 h-5" /> },
     ];
 
     const employeeItems: NavItem[] = [

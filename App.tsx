@@ -377,7 +377,7 @@ const App: React.FC = () => {
                     onClock={handleClock}
                 />;
             case 'live':
-                return <LiveWorkersPanel />;
+                return <LiveWorkersPanel assignedShifts={assignedShifts} />;
             case 'users':
                 return (
                     <AdminDashboardScreen
@@ -431,7 +431,7 @@ const App: React.FC = () => {
                 );
             default:
                 // Default fallback based on role
-                return user.isAdmin ? <LiveWorkersPanel /> : <DashboardScreen
+                return user.isAdmin ? <LiveWorkersPanel assignedShifts={assignedShifts} /> : <DashboardScreen
                     user={user}
                     shifts={shifts}
                     activeShift={activeShift}

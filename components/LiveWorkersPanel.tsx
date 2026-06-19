@@ -1,67 +1,102 @@
 import React, { useState, useEffect } from 'react';
-import type { User, Shift } from '../types';
+import type { User, Shift, AssignedShift, PublicUser } from '../types';
 import { ClockIcon } from './icons';
 import { formatTime } from '../utils/date';
-import { onActiveShifts } from '../services/dbService';
+import { onActiveShifts, getShifts, getPublicUsers, addShift } from '../services/dbService';
+import { WeeklyCalendar } from './WeeklyCalendar';
+import { EditShiftModal } from './EditShiftModal';
 
 interface LiveWorkersPanelProps {
-    // No props needed - Firebase provides all data
+    assignedShifts: AssignedShift[];
 }
 
-interface ActiveWorker {
-    user: User;
-    shift: Shift;
-}
+interface ActiveWorker { user: User; shift: Shift; }
 
-export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = () => {
+export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = ({ assignedShifts }) => {
     const [activeWorkers, setActiveWorkers] = useState<ActiveWorker[]>([]);
     const [currentTime, setCurrentTime] = useState(new Date());
 
-    // Listen to real-time active shifts from Firestore
-    useEffect(() => {
-        const unsubscribe = onActiveShifts((workers) => {
-            // Sort by start time (most recent first)
-            workers.sort((a, b) => {
-                return new Date(b.shift.startTime).getTime() - new Date(a.shift.startTime).getTime();
-            });
-            setActiveWorkers(workers);
-        });
+    // Panoramica turni state
+    const [users, setUsers] = useState<PublicUser[]>([]);
+    const [allShifts, setAllShifts] = useState<(Shift & { userId: string })[]>([]);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
+    const [selectedUserForEdit, setSelectedUserForEdit] = useState<PublicUser | null>(null);
 
-        return () => {
-            unsubscribe();
-        };
+    useEffect(() => {
+        const unsub = onActiveShifts(workers => {
+            setActiveWorkers([...workers].sort((a, b) =>
+                new Date(b.shift.startTime).getTime() - new Date(a.shift.startTime).getTime()
+            ));
+        });
+        return () => unsub();
     }, []);
 
-    // Aggiorna tempo corrente ogni secondo per durata real-time
     useEffect(() => {
-        const interval = setInterval(() => {
-            setCurrentTime(new Date());
-        }, 1000);
+        const interval = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(interval);
     }, []);
 
+    useEffect(() => {
+        const load = async () => {
+            const us = await getPublicUsers();
+            setUsers(us);
+            const arrays = await Promise.all(us.map(async u => {
+                const s = await getShifts(u.id);
+                return s.map(sh => ({ ...sh, userId: u.id }));
+            }));
+            setAllShifts(arrays.flat());
+        };
+        load();
+    }, []);
+
     const calculateDuration = (startTime: string): string => {
-        const start = new Date(startTime);
-        const diff = currentTime.getTime() - start.getTime();
-
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-        return `${hours}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`;
+        const diff = currentTime.getTime() - new Date(startTime).getTime();
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        return `${h}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
     };
 
     const getShiftTypeLabel = (shift: Shift): string | null => {
-        if (!shift.type) return null;
-
         const labels: Record<string, string> = {
-            standard: 'Standard',
-            cassa: 'Cassa',
-            macchina_propria: 'Macchina Propria',
-            macchina_pizzeria: 'Macchina Pizzeria'
+            standard: 'Standard', cassa: 'Cassa',
+            macchina_propria: 'Macchina Propria', macchina_pizzeria: 'Macchina Pizzeria'
         };
+        return shift.type ? labels[shift.type] ?? null : null;
+    };
 
-        return labels[shift.type] || null;
+    const handleShiftClick = (user: PublicUser, actualShift?: Shift, assignedShift?: AssignedShift) => {
+        setSelectedUserForEdit(user);
+        if (actualShift) {
+            setSelectedShift(actualShift);
+        } else if (assignedShift) {
+            const [year, month, day] = assignedShift.date.split('-').map(Number);
+            const [hours, minutes] = assignedShift.startTime.split(':').map(Number);
+            setSelectedShift({
+                id: `shift_${Date.now()}`,
+                startTime: new Date(year, month - 1, day, hours, minutes).toISOString(),
+                endTime: null,
+                type: 'standard',
+            });
+        }
+        setIsEditModalOpen(true);
+    };
+
+    const handleSaveShift = async (updatedShift: Shift) => {
+        if (!selectedUserForEdit) return;
+        try {
+            await addShift(selectedUserForEdit.id, updatedShift);
+            setAllShifts(prev => [
+                ...prev.filter(s => s.id !== updatedShift.id),
+                { ...updatedShift, userId: selectedUserForEdit.id }
+            ]);
+            setIsEditModalOpen(false);
+            setSelectedShift(null);
+            setSelectedUserForEdit(null);
+        } catch {
+            alert('Errore durante il salvataggio del turno.');
+        }
     };
 
     return (
@@ -75,24 +110,26 @@ export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = () => {
                     </div>
                     <div className="flex items-center gap-2 bg-white/15 px-3 py-1.5 rounded-full">
                         <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                        <span className="text-white text-sm font-semibold">{activeWorkers.length} {activeWorkers.length === 1 ? 'persona' : 'persone'}</span>
+                        <span className="text-white text-sm font-semibold">
+                            {activeWorkers.length} {activeWorkers.length === 1 ? 'persona' : 'persone'}
+                        </span>
                     </div>
                 </div>
             </div>
 
+            {/* Active workers */}
             {activeWorkers.length === 0 ? (
-                <div className="glass-panel rounded-2xl py-16 text-center">
-                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <ClockIcon className="w-8 h-8 text-slate-400" />
+                <div className="glass-panel rounded-2xl py-12 text-center">
+                    <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <ClockIcon className="w-7 h-7 text-slate-400" />
                     </div>
-                    <h3 className="font-bold text-slate-600 mb-1">Nessuno in Servizio</h3>
-                    <p className="text-slate-400 text-sm">Al momento non ci sono dipendenti al lavoro.</p>
+                    <p className="font-semibold text-slate-600">Nessuno in servizio</p>
+                    <p className="text-slate-400 text-sm mt-1">Al momento non ci sono dipendenti al lavoro.</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {activeWorkers.map(({ user, shift }) => {
-                        const shiftTypeLabel = getShiftTypeLabel(shift);
-                        const startTime = new Date(shift.startTime);
+                        const label = getShiftTypeLabel(shift);
                         return (
                             <div key={user.id} className="glass-panel rounded-2xl p-5 border-l-4 border-emerald-500">
                                 <div className="flex items-center gap-3 mb-4">
@@ -100,26 +137,26 @@ export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = () => {
                                         {user.name.charAt(0)}{user.surname.charAt(0)}
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-slate-800">{user.name} {user.surname}</h3>
+                                        <p className="font-bold text-slate-800">{user.name} {user.surname}</p>
                                         <div className="flex items-center gap-1 mt-0.5">
                                             <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                                             <span className="text-emerald-600 text-xs font-semibold">In Servizio</span>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <div className="flex justify-between items-center text-sm">
+                                <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between">
                                         <span className="text-slate-500">Iniziato alle</span>
-                                        <span className="font-semibold text-slate-700">{formatTime(startTime)}</span>
+                                        <span className="font-semibold text-slate-700">{formatTime(new Date(shift.startTime))}</span>
                                     </div>
-                                    <div className="flex justify-between items-center text-sm">
+                                    <div className="flex justify-between">
                                         <span className="text-slate-500">Durata</span>
                                         <span className="font-mono font-bold text-emerald-600">{calculateDuration(shift.startTime)}</span>
                                     </div>
-                                    {shiftTypeLabel && (
-                                        <div className="flex justify-between items-center text-sm">
+                                    {label && (
+                                        <div className="flex justify-between">
                                             <span className="text-slate-500">Tipo</span>
-                                            <span className="bg-amber-50 text-amber-700 text-xs px-2 py-0.5 rounded-full font-semibold border border-amber-200">{shiftTypeLabel}</span>
+                                            <span className="bg-amber-50 text-amber-700 text-xs px-2 py-0.5 rounded-full font-semibold border border-amber-200">{label}</span>
                                         </div>
                                     )}
                                 </div>
@@ -127,6 +164,30 @@ export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = () => {
                         );
                     })}
                 </div>
+            )}
+
+            {/* Weekly calendar */}
+            <div className="glass-panel rounded-2xl p-5">
+                <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <span className="text-blue-600">📅</span>
+                    Turni della Settimana
+                </h2>
+                <WeeklyCalendar
+                    shifts={allShifts}
+                    assignedShifts={assignedShifts}
+                    users={users}
+                    onShiftClick={handleShiftClick}
+                />
+            </div>
+
+            {selectedShift && (
+                <EditShiftModal
+                    isOpen={isEditModalOpen}
+                    onClose={() => setIsEditModalOpen(false)}
+                    onSave={handleSaveShift}
+                    shift={selectedShift}
+                    userName={selectedUserForEdit ? `${selectedUserForEdit.name} ${selectedUserForEdit.surname}` : undefined}
+                />
             )}
         </div>
     );
