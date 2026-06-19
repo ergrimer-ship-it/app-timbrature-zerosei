@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserIcon, LoginIcon } from './icons';
+import { LoginIcon } from './icons';
 
 interface LoginScreenProps {
     onLogin: (name: string, surname: string, password: string, rememberMe: boolean) => void;
@@ -30,7 +30,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         }
     }, [rememberedCredentials]);
 
-
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (name.trim() && surname.trim() && password.trim()) {
@@ -39,92 +38,85 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4 animate-fade-in">
-            <div className="w-full max-w-md glass-panel rounded-2xl p-8 transform transition-all hover:scale-[1.02] duration-300">
-                <div className="flex flex-col items-center mb-8">
-                    <div className="bg-gradient-to-br from-indigo-500 to-violet-500 p-4 rounded-2xl mb-4 shadow-lg shadow-indigo-500/30">
-                        <UserIcon className="w-8 h-8 text-white" />
-                    </div>
-                    <h1 className="text-3xl font-bold text-white tracking-tight">Area Personale</h1>
-                    <p className="text-slate-400 mt-2 font-light">Accedi per timbrare il tuo turno</p>
-                </div>
-                <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="min-h-screen flex flex-col bg-[#f0f4ff]">
+            {/* Blue header */}
+            <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-6 pt-16 pb-16 text-center text-white">
+                <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">⏱</div>
+                <h1 className="text-2xl font-bold">ZeroSei Timbrature</h1>
+                <p className="text-blue-200 text-sm mt-1">Accedi al tuo account</p>
+            </div>
+
+            {/* White form card */}
+            <div className="flex-1 -mt-6 bg-white rounded-t-3xl px-6 pt-8 pb-10 shadow-[0_-4px_24px_rgba(0,0,0,0.08)]">
+                <form onSubmit={handleSubmit} className="space-y-5 max-w-sm mx-auto">
                     <div>
-                        <label htmlFor="name" className="block text-slate-300 text-sm font-medium mb-2 ml-1">
-                            Nome
-                        </label>
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Nome</label>
                         <input
-                            id="name"
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="es. Mario"
-                            className="w-full px-4 py-3 glass-input rounded-xl placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                            className="glass-input w-full px-4 py-3 rounded-xl"
                             autoComplete="given-name"
                         />
                     </div>
                     <div>
-                        <label htmlFor="surname" className="block text-slate-300 text-sm font-medium mb-2 ml-1">
-                            Cognome
-                        </label>
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Cognome</label>
                         <input
-                            id="surname"
                             type="text"
                             value={surname}
                             onChange={(e) => setSurname(e.target.value)}
                             placeholder="es. Rossi"
-                            className="w-full px-4 py-3 glass-input rounded-xl placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                            className="glass-input w-full px-4 py-3 rounded-xl"
                             autoComplete="family-name"
                         />
                     </div>
                     <div>
-                        <label htmlFor="password" className="block text-slate-300 text-sm font-medium mb-2 ml-1">
-                            Password
-                        </label>
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Password</label>
                         <input
-                            id="password"
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            placeholder="********"
-                            className="w-full px-4 py-3 glass-input rounded-xl placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                            placeholder="••••••••"
+                            className="glass-input w-full px-4 py-3 rounded-xl"
                             autoComplete="current-password"
                         />
                     </div>
-                    <div className="flex items-center justify-between pt-2">
-                        <label htmlFor="rememberMe" className="flex items-center text-sm text-slate-400 cursor-pointer hover:text-slate-300 transition-colors">
-                            <input
-                                type="checkbox"
-                                id="rememberMe"
-                                checked={rememberMe}
-                                onChange={(e) => setRememberMe(e.target.checked)}
-                                className="w-4 h-4 text-indigo-600 bg-slate-800 border-slate-600 rounded focus:ring-indigo-500"
-                            />
-                            <span className="ml-2">Ricorda dati di accesso</span>
-                        </label>
-                    </div>
+
+                    <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={rememberMe}
+                            onChange={(e) => setRememberMe(e.target.checked)}
+                            className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
+                        />
+                        Ricorda dati di accesso
+                    </label>
+
                     {successMessage && (
-                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 animate-fade-in">
-                            <p className="text-emerald-400 text-sm text-center font-medium">{successMessage}</p>
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 animate-fade-in">
+                            <p className="text-emerald-600 text-sm text-center font-medium">{successMessage}</p>
                         </div>
                     )}
                     {error && (
-                        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-                            <p className="text-red-400 text-sm text-center">{error}</p>
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+                            <p className="text-red-500 text-sm text-center">{error}</p>
                         </div>
                     )}
+
                     <button
                         type="submit"
                         disabled={!name.trim() || !surname.trim() || !password.trim()}
-                        className="w-full glass-button text-white font-bold py-3.5 px-4 rounded-xl focus:outline-none focus:shadow-outline disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
+                        className="glass-button w-full py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <LoginIcon />
                         Accedi
                     </button>
                 </form>
+
                 <p className="text-center text-slate-400 text-sm mt-8">
                     Non hai un account?{' '}
-                    <button type="button" onClick={onSwitchToRegister} className="font-semibold text-indigo-400 hover:text-indigo-300 transition-colors focus:outline-none">
+                    <button type="button" onClick={onSwitchToRegister} className="font-semibold text-blue-600 hover:text-blue-700 transition-colors">
                         Crea un profilo
                     </button>
                 </p>

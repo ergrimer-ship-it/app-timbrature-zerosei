@@ -3,155 +3,122 @@ import { getAllUsers, getFutureLeaves } from '../services/dbService';
 import type { User, FutureLeave } from '../types';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
 
-interface LeaveSummaryScreenProps {
-    onBack?: () => void;
-}
+interface LeaveItem { user: User; leave: FutureLeave; }
 
-interface LeaveItem {
-    user: User;
-    leave: FutureLeave;
-}
-
-export const LeaveSummaryScreen: React.FC<LeaveSummaryScreenProps> = () => {
-    // Initialize with Next Month
+export const LeaveSummaryScreen: React.FC = () => {
     const [currentDate, setCurrentDate] = useState(() => {
         const d = new Date();
         d.setMonth(d.getMonth() + 1);
         d.setDate(1);
         return d;
     });
-
     const [allLeaves, setAllLeaves] = useState<LeaveItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const loadData = async () => {
+        const load = async () => {
             setIsLoading(true);
             try {
                 const users = await getAllUsers();
-                const promises = users.map(async user => {
-                    const leaves = await getFutureLeaves(user.id);
-                    return leaves.map(leave => ({ user, leave }));
-                });
-                const results = await Promise.all(promises);
-                const flat = results.flat();
-                setAllLeaves(flat);
-            } catch (error) {
-                console.error("Error loading leaves summary:", error);
+                const results = await Promise.all(
+                    users.map(async user => (await getFutureLeaves(user.id)).map(leave => ({ user, leave })))
+                );
+                setAllLeaves(results.flat());
             } finally {
                 setIsLoading(false);
             }
         };
-        loadData();
+        load();
     }, []);
 
     const changeMonth = (amount: number) => {
         setCurrentDate(prev => {
-            const newDate = new Date(prev);
-            newDate.setDate(1);
-            newDate.setMonth(newDate.getMonth() + amount);
-            return newDate;
+            const d = new Date(prev);
+            d.setDate(1);
+            d.setMonth(d.getMonth() + amount);
+            return d;
         });
     };
 
     const formatRange = (start: string, end?: string) => {
         const s = new Date(start);
         const e = end ? new Date(end) : s;
-
-        const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
-
-        if (s.getTime() === e.getTime()) {
-            return s.toLocaleDateString('it-IT', options);
-        }
-        return `${s.toLocaleDateString('it-IT', options)} - ${e.toLocaleDateString('it-IT', options)}`;
+        const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
+        return s.getTime() === e.getTime()
+            ? s.toLocaleDateString('it-IT', opts)
+            : `${s.toLocaleDateString('it-IT', opts)} – ${e.toLocaleDateString('it-IT', opts)}`;
     };
 
     const filteredLeaves = useMemo(() => {
-        const currentYear = currentDate.getFullYear();
-        const currentMonth = currentDate.getMonth();
-
-        return allLeaves.filter(item => {
-            const start = new Date(item.leave.startDate);
-            const end = item.leave.endDate ? new Date(item.leave.endDate) : start;
-
-            // Check if loop overlaps with current month
-            // Simple check: start or end is in the month
-            // Better check: range overlap
-
-            const monthStart = new Date(currentYear, currentMonth, 1);
-            const monthEnd = new Date(currentYear, currentMonth + 1, 0);
-
+        const y = currentDate.getFullYear();
+        const mo = currentDate.getMonth();
+        const monthStart = new Date(y, mo, 1);
+        const monthEnd = new Date(y, mo + 1, 0);
+        return allLeaves.filter(({ leave }) => {
+            const start = new Date(leave.startDate);
+            const end = leave.endDate ? new Date(leave.endDate) : start;
             return start <= monthEnd && end >= monthStart;
         }).sort((a, b) => new Date(a.leave.startDate).getTime() - new Date(b.leave.startDate).getTime());
     }, [allLeaves, currentDate]);
 
-    if (isLoading) {
-        return <div className="text-white p-8">Caricamento riepilogo...</div>;
-    }
+    if (isLoading) return <div className="text-slate-500 p-8 text-center">Caricamento riepilogo...</div>;
 
     return (
-        <div className="space-y-6">
-            <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-white mb-2">Riepilogo Permessi</h1>
-                    <p className="text-slate-400">Pianificazione ferie e assenze dei dipendenti.</p>
+        <div className="space-y-5">
+            {/* Blue header */}
+            <div className="screen-header rounded-b-3xl">
+                <div className="flex items-center justify-between mb-5">
+                    <div>
+                        <h1 className="text-2xl font-bold">Riepilogo Permessi</h1>
+                        <p className="text-blue-200 text-sm mt-1">Ferie e assenze dei dipendenti</p>
+                    </div>
                 </div>
-
-                <div className="flex items-center bg-slate-800 rounded-lg p-1 self-start md:self-auto">
-                    <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-slate-700 rounded-md transition text-slate-300">
+                <div className="flex items-center justify-between bg-white/15 rounded-2xl px-4 py-3">
+                    <button onClick={() => changeMonth(-1)} className="text-white hover:text-blue-200 transition p-1">
                         <ChevronLeftIcon className="w-5 h-5" />
                     </button>
-                    <span className="min-w-[140px] text-center font-bold text-white capitalize px-2">
+                    <span className="font-bold text-white capitalize">
                         {currentDate.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
                     </span>
-                    <button onClick={() => changeMonth(1)} className="p-2 hover:bg-slate-700 rounded-md transition text-slate-300">
+                    <button onClick={() => changeMonth(1)} className="text-white hover:text-blue-200 transition p-1">
                         <ChevronRightIcon className="w-5 h-5" />
                     </button>
                 </div>
-            </header>
+            </div>
 
-            <div className="glass-panel p-0 overflow-hidden rounded-2xl shadow-lg bg-slate-800/50 border border-slate-700">
+            <div className="glass-panel rounded-2xl overflow-hidden">
                 {filteredLeaves.length > 0 ? (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full text-left">
                             <thead>
-                                <tr className="border-b border-slate-700 bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
+                                <tr className="border-b border-slate-100 bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                                     <th className="p-4 font-semibold">Dipendente</th>
                                     <th className="p-4 font-semibold">Periodo</th>
                                     <th className="p-4 font-semibold text-center">Giorni</th>
-                                    <th className="p-4 font-semibold text-right">Dettagli</th>
+                                    <th className="p-4 font-semibold text-right">Richiesto</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-700/50">
-                                {filteredLeaves.map((item) => {
-                                    const s = new Date(item.leave.startDate);
-                                    const e = item.leave.endDate ? new Date(item.leave.endDate) : s;
-                                    const days = Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
+                            <tbody className="divide-y divide-slate-100">
+                                {filteredLeaves.map(({ user, leave }) => {
+                                    const s = new Date(leave.startDate);
+                                    const e = leave.endDate ? new Date(leave.endDate) : s;
+                                    const days = Math.round((e.getTime() - s.getTime()) / 86400000) + 1;
                                     return (
-                                        <tr key={item.leave.id} className="hover:bg-slate-700/30 transition-colors">
+                                        <tr key={leave.id} className="hover:bg-blue-50/40 transition-colors">
                                             <td className="p-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-xs font-bold text-indigo-300 border border-indigo-500/30">
-                                                        {item.user.name.charAt(0)}{item.user.surname.charAt(0)}
+                                                    <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700">
+                                                        {user.name.charAt(0)}{user.surname.charAt(0)}
                                                     </div>
-                                                    <div>
-                                                        <div className="font-medium text-slate-200">{item.user.name} {item.user.surname}</div>
-                                                    </div>
+                                                    <span className="font-medium text-slate-700 text-sm">{user.name} {user.surname}</span>
                                                 </div>
                                             </td>
-                                            <td className="p-4 text-slate-300">
-                                                {formatRange(item.leave.startDate, item.leave.endDate)}
-                                            </td>
+                                            <td className="p-4 text-slate-600 text-sm">{formatRange(leave.startDate, leave.endDate)}</td>
                                             <td className="p-4 text-center">
-                                                <span className="inline-block px-2 py-1 rounded-md bg-slate-700 text-xs font-bold text-slate-300 min-w-[30px]">
-                                                    {days}
-                                                </span>
+                                                <span className="inline-block px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold min-w-[28px]">{days}</span>
                                             </td>
-                                            <td className="p-4 text-right">
-                                                <div className="text-xs text-slate-500">
-                                                    Richiesto il {new Date(item.leave.createdAt).toLocaleDateString('it-IT')}
-                                                </div>
+                                            <td className="p-4 text-right text-xs text-slate-400">
+                                                {new Date(leave.createdAt).toLocaleDateString('it-IT')}
                                             </td>
                                         </tr>
                                     );
@@ -160,14 +127,13 @@ export const LeaveSummaryScreen: React.FC<LeaveSummaryScreenProps> = () => {
                         </table>
                     </div>
                 ) : (
-                    <div className="p-12 text-center flex flex-col items-center justify-center">
-                        <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4 text-slate-600">
-                            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="py-16 text-center">
+                        <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <svg className="w-7 h-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                         </div>
-                        <h3 className="text-lg font-medium text-slate-300">Nessun permesso trovato</h3>
-                        <p className="text-slate-500 mt-1">Non ci sono richieste di permesso per {currentDate.toLocaleDateString('it-IT', { month: 'long' })}.</p>
+                        <p className="text-slate-500 font-medium">Nessun permesso per {currentDate.toLocaleDateString('it-IT', { month: 'long' })}</p>
                     </div>
                 )}
             </div>

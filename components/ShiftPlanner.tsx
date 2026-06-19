@@ -10,12 +10,11 @@ interface ShiftPlannerProps {
 }
 
 const toDateKey = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const y = date.getFullYear();
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const d = date.getDate().toString().padStart(2, '0');
+    return `${y}-${m}-${d}`;
 };
-
 
 export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedShifts, onSaveShifts }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -23,9 +22,7 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
     const [isSaving, setIsSaving] = useState(false);
     const [leavesByUser, setLeavesByUser] = useState<Record<string, FutureLeave[]>>({});
 
-    useEffect(() => {
-        setLocalShifts(assignedShifts);
-    }, [assignedShifts]);
+    useEffect(() => { setLocalShifts(assignedShifts); }, [assignedShifts]);
 
     useEffect(() => {
         if (allUsers.length === 0) return;
@@ -43,35 +40,28 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
 
     const changeMonth = (amount: number) => {
         setCurrentDate(prev => {
-            const newDate = new Date(prev);
-            newDate.setDate(1);
-            newDate.setMonth(newDate.getMonth() + amount);
-            return newDate;
+            const d = new Date(prev);
+            d.setDate(1);
+            d.setMonth(d.getMonth() + amount);
+            return d;
         });
     };
 
     const daysInMonth = useMemo(() => {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
-        const numDays = new Date(year, month + 1, 0).getDate();
-        return Array.from({ length: numDays }, (_, i) => new Date(year, month, i + 1));
+        const y = currentDate.getFullYear();
+        const mo = currentDate.getMonth();
+        const n = new Date(y, mo + 1, 0).getDate();
+        return Array.from({ length: n }, (_, i) => new Date(y, mo, i + 1));
     }, [currentDate]);
 
     const shiftsByDay = useMemo(() => {
         const map = new Map<string, AssignedShift[]>();
-        daysInMonth.forEach(day => {
-            const dayKey = toDateKey(day);
-            map.set(dayKey, []);
-        });
-
+        daysInMonth.forEach(day => map.set(toDateKey(day), []));
         localShifts.forEach(shift => {
-            const shiftDate = new Date(shift.date);
-            if (shiftDate.getFullYear() === currentDate.getFullYear() && shiftDate.getMonth() === currentDate.getMonth()){
-                const dayKey = shift.date; // shift.date is already YYYY-MM-DD
-                if (map.has(dayKey)) {
-                    const dayShifts = map.get(dayKey)!;
-                    map.set(dayKey, [...dayShifts, shift]);
-                }
+            const d = new Date(shift.date);
+            if (d.getFullYear() === currentDate.getFullYear() && d.getMonth() === currentDate.getMonth()) {
+                const key = shift.date;
+                if (map.has(key)) map.set(key, [...map.get(key)!, shift]);
             }
         });
         return map;
@@ -81,27 +71,23 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
         const map = new Map<string, User[]>();
         daysInMonth.forEach(day => {
             const dateStr = toDateKey(day);
-            const usersOnLeave = allUsers.filter(u => {
+            const users = allUsers.filter(u => {
                 if (u.isAdmin) return false;
                 return (leavesByUser[u.id] ?? []).some(l => {
                     const end = l.endDate ?? l.startDate;
                     return l.startDate <= dateStr && dateStr <= end;
                 });
             });
-            if (usersOnLeave.length > 0) map.set(dateStr, usersOnLeave);
+            if (users.length > 0) map.set(dateStr, users);
         });
         return map;
     }, [allUsers, leavesByUser, daysInMonth]);
 
     const handleAddShift = (date: string) => {
-        const newShift: AssignedShift = {
+        setLocalShifts(prev => [...prev, {
             id: `shift_${Date.now()}_${Math.random()}`,
-            date,
-            userId: '',
-            startTime: '18:30',
-            endTime: '21:30',
-        };
-        setLocalShifts(prev => [...prev, newShift]);
+            date, userId: '', startTime: '18:30', endTime: '21:30',
+        }]);
     };
 
     const handleUpdateShift = (id: string, field: 'userId' | 'startTime' | 'endTime', value: string) => {
@@ -111,96 +97,116 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
     const handleDeleteShift = (id: string) => {
         setLocalShifts(prev => prev.filter(s => s.id !== id));
     };
-    
+
     const handleSaveChanges = () => {
         setIsSaving(true);
-        // We only update the shifts for the currently viewed month.
-        const otherMonthsShifts = assignedShifts.filter(s => {
-            const shiftDate = new Date(s.date);
-            return shiftDate.getFullYear() !== currentDate.getFullYear() || shiftDate.getMonth() !== currentDate.getMonth();
+        const other = assignedShifts.filter(s => {
+            const d = new Date(s.date);
+            return d.getFullYear() !== currentDate.getFullYear() || d.getMonth() !== currentDate.getMonth();
         });
-        const currentMonthShifts = localShifts.filter(s => {
-             const shiftDate = new Date(s.date);
-            return shiftDate.getFullYear() === currentDate.getFullYear() && shiftDate.getMonth() === currentDate.getMonth();
+        const current = localShifts.filter(s => {
+            const d = new Date(s.date);
+            return d.getFullYear() === currentDate.getFullYear() && d.getMonth() === currentDate.getMonth();
         });
-        onSaveShifts([...otherMonthsShifts, ...currentMonthShifts]);
+        onSaveShifts([...other, ...current]);
         setTimeout(() => setIsSaving(false), 1000);
     };
 
     return (
-        <div className="bg-gray-800 p-6 rounded-2xl shadow-lg">
-            <div className="flex flex-col sm:flex-row items-center justify-between mb-4">
-                 <div className="flex items-center">
-                    <button onClick={() => changeMonth(-1)} className="p-2 rounded-full hover:bg-gray-700 transition">
-                        <ChevronLeftIcon />
-                    </button>
-                    <h2 className="text-xl font-bold text-center capitalize w-48">
-                        {currentDate.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}
-                    </h2>
-                    <button onClick={() => changeMonth(1)} className="p-2 rounded-full hover:bg-gray-700 transition">
-                        <ChevronRightIcon />
+        <div className="space-y-5">
+            {/* Blue header */}
+            <div className="screen-header rounded-b-3xl">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold">Pianificazione Turni</h1>
+                        <p className="text-blue-200 text-sm mt-1">Gestisci i turni del mese</p>
+                    </div>
+                    <button
+                        onClick={handleSaveChanges}
+                        disabled={isSaving}
+                        className="flex items-center gap-2 px-4 py-2 bg-white text-blue-700 font-bold text-sm rounded-xl shadow hover:shadow-md transition disabled:opacity-60"
+                    >
+                        <SaveIcon />
+                        {isSaving ? 'Salvato!' : 'Salva'}
                     </button>
                 </div>
-                <button 
-                    onClick={handleSaveChanges}
-                    disabled={isSaving}
-                    className="w-full sm:w-auto mt-4 sm:mt-0 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 disabled:bg-gray-500"
-                >
-                    <SaveIcon />
-                    {isSaving ? 'Salvato!' : 'Salva Modifiche'}
-                </button>
+                <div className="flex items-center justify-between mt-5 bg-white/15 rounded-2xl px-4 py-3">
+                    <button onClick={() => changeMonth(-1)} className="text-white hover:text-blue-200 transition p-1">
+                        <ChevronLeftIcon className="w-5 h-5" />
+                    </button>
+                    <span className="font-bold text-white capitalize">
+                        {currentDate.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}
+                    </span>
+                    <button onClick={() => changeMonth(1)} className="text-white hover:text-blue-200 transition p-1">
+                        <ChevronRightIcon className="w-5 h-5" />
+                    </button>
+                </div>
             </div>
-            
-            <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
-                {Array.from(shiftsByDay.entries()).sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime()).map(([date, shifts]) => (
-                    <div key={date} className="bg-gray-900/50 p-4 rounded-lg">
-                        <h4 className="font-bold text-lg mb-2 text-blue-300">
-                           {new Date(date.replace(/-/g, '/')).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric' })}
-                        </h4>
-                        {leavesByDate.has(date) && (
-                            <div className="flex flex-wrap gap-1 mb-3">
-                                {leavesByDate.get(date)!.map(u => (
-                                    <span key={u.id} className="inline-flex items-center gap-1 text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full">
-                                        ✈️ {u.name} {u.surname}: permesso
+
+            {/* Days */}
+            <div className="space-y-3">
+                {Array.from(shiftsByDay.entries())
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([date, shifts]) => (
+                        <div key={date} className="glass-panel rounded-2xl p-4">
+                            <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-bold text-slate-800 capitalize">
+                                    {new Date(date.replace(/-/g, '/')).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'short' })}
+                                </h4>
+                                {shifts.length > 0 && (
+                                    <span className="text-xs bg-blue-50 text-blue-600 font-bold px-2 py-0.5 rounded-full">
+                                        {shifts.length} {shifts.length === 1 ? 'turno' : 'turni'}
                                     </span>
+                                )}
+                            </div>
+
+                            {leavesByDate.has(date) && (
+                                <div className="flex flex-wrap gap-1 mb-3">
+                                    {leavesByDate.get(date)!.map(u => (
+                                        <span key={u.id} className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-full">
+                                            ✈️ {u.name} {u.surname}: permesso
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="space-y-2">
+                                {shifts.map(shift => (
+                                    <div key={shift.id} className="grid grid-cols-1 sm:grid-cols-[1fr,auto,auto,auto] gap-2 items-center bg-slate-50 rounded-xl p-2">
+                                        <select
+                                            value={shift.userId}
+                                            onChange={(e) => handleUpdateShift(shift.id, 'userId', e.target.value)}
+                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                        >
+                                            <option value="">Seleziona Utente</option>
+                                            {allUsers.map(u => <option key={u.id} value={u.id}>{u.name} {u.surname}</option>)}
+                                        </select>
+                                        <input
+                                            type="time"
+                                            value={shift.startTime}
+                                            onChange={(e) => handleUpdateShift(shift.id, 'startTime', e.target.value)}
+                                            className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                        />
+                                        <input
+                                            type="time"
+                                            value={shift.endTime ?? ''}
+                                            onChange={(e) => handleUpdateShift(shift.id, 'endTime', e.target.value)}
+                                            className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                        />
+                                        <button onClick={() => handleDeleteShift(shift.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                                            <TrashIcon />
+                                        </button>
+                                    </div>
                                 ))}
                             </div>
-                        )}
-                        <div className="space-y-2">
-                            {shifts.map(shift => (
-                                <div key={shift.id} className="grid grid-cols-1 sm:grid-cols-[1fr,auto,auto,auto] gap-2 items-center">
-                                    <select
-                                        value={shift.userId}
-                                        onChange={(e) => handleUpdateShift(shift.id, 'userId', e.target.value)}
-                                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        <option value="">Seleziona Utente</option>
-                                        {allUsers.map(u => <option key={u.id} value={u.id}>{u.name} {u.surname}</option>)}
-                                    </select>
-                                    <input
-                                        type="time"
-                                        value={shift.startTime}
-                                        onChange={(e) => handleUpdateShift(shift.id, 'startTime', e.target.value)}
-                                        className="w-full sm:w-auto px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-                                    <input
-                                        type="time"
-                                        value={shift.endTime ?? ''}
-                                        onChange={(e) => handleUpdateShift(shift.id, 'endTime', e.target.value)}
-                                        className="w-full sm:w-auto px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        placeholder="Fine"
-                                    />
-                                    <button onClick={() => handleDeleteShift(shift.id)} className="p-2 text-gray-400 hover:text-red-400 transition-colors">
-                                        <TrashIcon />
-                                    </button>
-                                </div>
-                            ))}
+                            <button
+                                onClick={() => handleAddShift(date)}
+                                className="mt-3 text-blue-600 hover:text-blue-700 font-semibold text-sm flex items-center gap-1 transition-colors"
+                            >
+                                + Aggiungi Turno
+                            </button>
                         </div>
-                        <button onClick={() => handleAddShift(date)} className="text-blue-400 hover:text-blue-300 font-semibold mt-3 text-sm">
-                            + Aggiungi Turno
-                        </button>
-                    </div>
-                ))}
+                    ))}
             </div>
         </div>
     );

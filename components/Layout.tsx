@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sidebar } from './Sidebar';
+import { BottomNav } from './BottomNav';
 import type { User } from '../types';
 
 interface LayoutProps {
@@ -12,20 +12,18 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children, user, currentSection, onNavigate, onLogout }) => {
     return (
-        <div className="flex min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-[#0f172a] to-black text-slate-200 font-sans">
+        <div className="min-h-screen bg-[#f0f4ff] font-sans">
+            <main className={`max-w-4xl mx-auto p-4 lg:p-8 ${user ? 'pb-24' : ''}`}>
+                {children}
+            </main>
             {user && (
-                <Sidebar
+                <BottomNav
                     user={user}
                     currentSection={currentSection}
                     onNavigate={onNavigate}
                     onLogout={onLogout}
                 />
             )}
-            <main className={`flex-1 overflow-auto transition-all duration-300 ${user ? 'lg:ml-72' : ''} p-4 lg:p-8`}>
-                <div className="max-w-7xl mx-auto">
-                    {children}
-                </div>
-            </main>
         </div>
     );
 };

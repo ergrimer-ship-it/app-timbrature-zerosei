@@ -28,79 +28,70 @@ export const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ selectedUser
         setLoadingPassword(false);
     };
 
+    const tabs = [
+        { id: 'calendar' as const, label: 'Calendario', icon: <CalendarIcon className="w-4 h-4" /> },
+        { id: 'shifts'   as const, label: 'Turni Programmati', icon: <ClipboardListIcon className="w-4 h-4" /> },
+        { id: 'notes'    as const, label: 'Note e Richieste',  icon: <FileTextIcon className="w-4 h-4" /> },
+    ];
+
     return (
-        <div className="min-h-screen bg-gray-900 p-4 sm:p-6 lg:p-8">
-            <header className="mb-8">
-                <button onClick={onBack} className="flex items-center gap-2 text-blue-400 hover:text-blue-300 font-semibold mb-4">
-                    <ChevronLeftIcon className="w-5 h-5" />
-                    Torna alla lista utenti
+        <div className="space-y-5">
+            {/* Blue header */}
+            <div className="screen-header rounded-b-3xl">
+                <button onClick={onBack} className="flex items-center gap-1 text-blue-200 hover:text-white text-sm font-medium mb-4 transition-colors">
+                    <ChevronLeftIcon className="w-4 h-4" />
+                    Torna alla lista
                 </button>
-                <h1 className="text-2xl sm:text-3xl font-bold text-white">Dettaglio per {selectedUser.name} {selectedUser.surname}</h1>
-                <p className="text-gray-400">Visualizzazione del calendario timbrature e note.</p>
-
-                <div className="mt-3 flex items-center gap-3">
-                    <button
-                        onClick={handleShowPassword}
-                        className="px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors"
-                    >
-                        {loadingPassword ? 'Caricamento...' : password !== null ? 'Nascondi password' : 'Mostra password'}
-                    </button>
-                    {password !== null && (
-                        <span className="font-mono text-yellow-300 bg-slate-800 px-3 py-1.5 rounded-lg text-sm select-all">
-                            {password}
-                        </span>
-                    )}
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center font-bold text-xl">
+                        {selectedUser.name.charAt(0)}{selectedUser.surname.charAt(0)}
+                    </div>
+                    <div>
+                        <h1 className="text-xl font-bold">{selectedUser.name} {selectedUser.surname}</h1>
+                        <div className="flex items-center gap-2 mt-1">
+                            <button
+                                onClick={handleShowPassword}
+                                className="text-blue-200 hover:text-white text-xs font-medium transition-colors"
+                            >
+                                {loadingPassword ? 'Caricamento...' : password !== null ? 'Nascondi password' : 'Mostra password'}
+                            </button>
+                            {password !== null && (
+                                <span className="font-mono text-yellow-300 text-xs bg-white/10 px-2 py-0.5 rounded-lg">{password}</span>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
-                {/* Tab Navigation */}
-                <div className="flex gap-2 mt-6 flex-wrap">
-                    <button
-                        onClick={() => setActiveTab('calendar')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'calendar'
-                            ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/50'
-                            : 'bg-slate-800/30 text-slate-400 border border-slate-700/50 hover:bg-slate-800/50'
+                {/* Tabs */}
+                <div className="flex gap-2 mt-5 flex-wrap">
+                    {tabs.map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                                activeTab === tab.id
+                                    ? 'bg-white text-blue-700 shadow'
+                                    : 'bg-white/15 text-blue-100 hover:bg-white/25'
                             }`}
-                    >
-                        <CalendarIcon className="w-5 h-5" />
-                        Calendario
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('shifts')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'shifts'
-                            ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/50'
-                            : 'bg-slate-800/30 text-slate-400 border border-slate-700/50 hover:bg-slate-800/50'
-                            }`}
-                    >
-                        <ClipboardListIcon className="w-5 h-5" />
-                        Turni Programmati
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('notes')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'notes'
-                            ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/50'
-                            : 'bg-slate-800/30 text-slate-400 border border-slate-700/50 hover:bg-slate-800/50'
-                            }`}
-                    >
-                        <FileTextIcon className="w-5 h-5" />
-                        Note e Richieste
-                    </button>
+                        >
+                            {tab.icon}
+                            {tab.label}
+                        </button>
+                    ))}
                 </div>
-            </header>
+            </div>
+
             <main>
                 {activeTab === 'calendar' ? (
-                    <Calendar
-                        shifts={userShifts}
-                        isAdminView={true}
-                        onUpdateShift={onUpdateShift}
-                        onDeleteShift={onDeleteShift}
-                    />
+                    <div className="glass-panel rounded-2xl p-5">
+                        <Calendar shifts={userShifts} isAdminView={true} onUpdateShift={onUpdateShift} onDeleteShift={onDeleteShift} />
+                    </div>
                 ) : activeTab === 'shifts' ? (
-                    <UserShiftsView assignedShifts={assignedShifts} />
+                    <div className="glass-panel rounded-2xl p-5">
+                        <UserShiftsView assignedShifts={assignedShifts} />
+                    </div>
                 ) : (
-                    <EmployeeNotesScreen
-                        selectedUser={selectedUser}
-                        isAdmin={true}
-                    />
+                    <EmployeeNotesScreen selectedUser={selectedUser} isAdmin={true} />
                 )}
             </main>
         </div>

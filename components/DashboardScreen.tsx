@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect } from 'react';
 import type { User, Shift, AssignedShift, ShiftType } from '../types';
 import { Calendar } from './Calendar';
@@ -17,62 +14,44 @@ interface DashboardScreenProps {
     onClock: (shiftType: ShiftType) => void;
 }
 
-
-
 const ShiftListItem: React.FC<{ shift: Shift }> = ({ shift }) => {
     const startTime = new Date(shift.startTime);
     const endTime = shift.endTime ? new Date(shift.endTime) : null;
-
-    const getShiftTypeLabel = (type?: ShiftType): string | null => {
-        if (!type) return null;
-        const labels: Record<ShiftType, string> = {
-            standard: 'Standard',
-            cassa: 'Cassa',
-            macchina_propria: 'Macchina Propria',
-            macchina_pizzeria: 'Macchina Pizzeria'
-        };
-        return labels[type] || null;
+    const labels: Record<ShiftType, string> = {
+        standard: 'Standard', cassa: 'Cassa',
+        macchina_propria: 'Macchina Propria', macchina_pizzeria: 'Macchina Pizzeria'
     };
-
     return (
-        <div className="flex justify-between items-center bg-slate-800/50 border border-slate-700/50 p-3 rounded-xl hover:bg-slate-800/70 transition-colors">
+        <div className="flex justify-between items-center bg-slate-50 border border-slate-200 p-3 rounded-xl">
             <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-500/20 rounded-lg">
-                    <ClockIcon className="w-5 h-5 text-indigo-400" />
+                <div className="p-2 bg-blue-50 rounded-lg">
+                    <ClockIcon className="w-4 h-4 text-blue-600" />
                 </div>
                 <div>
-                    <p className="font-semibold text-slate-200">{formatTime(startTime)} - {endTime ? formatTime(endTime) : '...'}</p>
-                    {shift.type && (
-                        <span className="text-[10px] bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block">
-                            {getShiftTypeLabel(shift.type)}
+                    <p className="font-semibold text-slate-700 text-sm">{formatTime(startTime)} – {endTime ? formatTime(endTime) : '...'}</p>
+                    {shift.type && shift.type !== 'standard' && (
+                        <span className="text-[10px] bg-amber-50 border border-amber-200 text-amber-600 px-1.5 py-0.5 rounded-full font-medium mt-0.5 inline-block">
+                            {labels[shift.type]}
                         </span>
                     )}
                 </div>
             </div>
-            <p className="text-sm font-mono bg-slate-900/50 px-2 py-1 rounded text-slate-400">{formatDuration(startTime, endTime)}</p>
+            <p className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-500">{formatDuration(startTime, endTime)}</p>
         </div>
     );
 };
 
 const ShiftTypeOption: React.FC<{ label: string; value: ShiftType; selected: boolean; onChange: () => void; disabled: boolean }> = ({ label, selected, onChange, disabled }) => (
-    <label className={`flex items-center p-3 rounded-xl transition-all border ${disabled
-        ? 'cursor-not-allowed bg-slate-900/50 border-slate-800 text-slate-600'
-        : selected
-            ? 'bg-indigo-500/20 border-indigo-500/50 cursor-pointer'
-            : 'bg-slate-800/30 border-slate-700/50 hover:bg-slate-800/50 cursor-pointer'
-        }`}>
-        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${selected ? 'border-indigo-500' : 'border-slate-500'
-            }`}>
-            {selected && <div className="w-3 h-3 rounded-full bg-indigo-500"></div>}
+    <label className={`flex items-center p-3 rounded-xl transition-all border cursor-pointer ${
+        disabled ? 'cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400'
+        : selected ? 'bg-blue-50 border-blue-400'
+        : 'bg-white border-slate-200 hover:border-blue-300'
+    }`}>
+        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${selected ? 'border-blue-600' : 'border-slate-300'}`}>
+            {selected && <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />}
         </div>
-        <input
-            type="radio"
-            checked={selected}
-            onChange={onChange}
-            disabled={disabled}
-            className="hidden"
-        />
-        <span className={`ml-3 font-medium ${selected ? 'text-indigo-300' : 'text-slate-300'}`}>{label}</span>
+        <input type="radio" checked={selected} onChange={onChange} disabled={disabled} className="hidden" />
+        <span className={`ml-3 font-medium text-sm ${selected ? 'text-blue-700' : 'text-slate-600'}`}>{label}</span>
     </label>
 );
 
@@ -82,142 +61,109 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, shifts, 
     const getShiftTypeLabel = (type?: ShiftType): string | null => {
         if (!type) return null;
         const labels: Record<ShiftType, string> = {
-            standard: 'Standard',
-            cassa: 'Cassa',
-            macchina_propria: 'Macchina Propria',
-            macchina_pizzeria: 'Macchina Pizzeria'
+            standard: 'Standard', cassa: 'Cassa',
+            macchina_propria: 'Macchina Propria', macchina_pizzeria: 'Macchina Pizzeria'
         };
         return labels[type] || null;
     };
 
-    useEffect(() => {
-        if (!activeShift) {
-            setSelectedShiftType(null);
-        }
-    }, [activeShift]);
-
-    const handleShiftTypeChange = (type: ShiftType) => {
-        setSelectedShiftType(type);
-    };
+    useEffect(() => { if (!activeShift) setSelectedShiftType(null); }, [activeShift]);
 
     const handleClockClick = () => {
-        if (activeShift) {
-            onClock(activeShift.type || 'standard');
-        } else if (selectedShiftType) {
-            onClock(selectedShiftType);
-        }
+        if (activeShift) onClock(activeShift.type || 'standard');
+        else if (selectedShiftType) onClock(selectedShiftType);
     };
 
-    const todayShifts = shifts.filter(s => isSameDay(new Date(s.startTime), new Date()));
-    const reversedTodayShifts = [...todayShifts].reverse();
+    const todayShifts = [...shifts.filter(s => isSameDay(new Date(s.startTime), new Date()))].reverse();
 
     return (
-        <div className="space-y-6">
-            <header>
-                <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Bentornato, {user.name}</h1>
-                <p className="text-slate-400">Ecco il riepilogo della tua attività lavorativa.</p>
-            </header>
+        <div className="space-y-5">
+            {/* Blue header */}
+            <div className="screen-header rounded-b-3xl">
+                <div className="flex items-center justify-between mb-4">
+                    <div>
+                        <p className="text-blue-200 text-sm">Bentornato,</p>
+                        <h1 className="text-2xl font-bold">{user.name} {user.surname}</h1>
+                    </div>
+                    <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center font-bold text-lg">
+                        {user.name.charAt(0)}{user.surname.charAt(0)}
+                    </div>
+                </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-1 flex flex-col gap-8">
-                    {/* Clock Panel */}
-                    <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16 transition-all group-hover:bg-indigo-500/20"></div>
-                        <div className="text-center mb-8 relative z-10">
-                            {activeShift ? (
-                                <>
-                                    <p className="text-slate-400 text-sm uppercase tracking-wider font-medium mb-2">Turno in corso</p>
-                                    <p className="text-4xl font-bold text-white tracking-tight">{formatTime(new Date(activeShift.startTime))}</p>
-                                    <div className="mt-2 flex flex-col items-center gap-2">
-                                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold border border-emerald-500/20 animate-pulse">
-                                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                            ATTIVO
-                                        </div>
-                                        {activeShift.type && (
-                                            <span className="text-xs bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-1 rounded-full font-medium">
-                                                {getShiftTypeLabel(activeShift.type)}
-                                            </span>
-                                        )}
-                                    </div>
-                                </>
-                            ) : (
-                                <>
-                                    <p className="text-slate-400 text-sm uppercase tracking-wider font-medium mb-2">Stato attuale</p>
-                                    <p className="text-3xl font-bold text-slate-500">Non in servizio</p>
-                                </>
+                {/* Active shift info card */}
+                {activeShift && (
+                    <div className="bg-white/15 rounded-2xl p-4 flex justify-between items-center">
+                        <div>
+                            <p className="text-blue-200 text-xs font-semibold uppercase tracking-wider">Turno iniziato</p>
+                            <p className="text-white font-bold text-xl mt-0.5">{formatTime(new Date(activeShift.startTime))}</p>
+                            {activeShift.type && (
+                                <p className="text-blue-200 text-xs mt-0.5">{getShiftTypeLabel(activeShift.type)}</p>
                             )}
                         </div>
+                        <div className="text-right">
+                            <p className="text-blue-200 text-xs font-semibold uppercase tracking-wider">Oggi</p>
+                            <p className="text-white font-bold text-xl mt-0.5">{formatDate(new Date())}</p>
+                            <div className="inline-flex items-center gap-1 mt-1 bg-emerald-400/20 border border-emerald-400/30 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                ATTIVO
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <div className="lg:col-span-1 flex flex-col gap-5">
+                    {/* Clock Panel */}
+                    <div className="glass-panel rounded-2xl p-5">
                         {!activeShift && (
-                            <div className="my-6 space-y-3 relative z-10">
-                                <p className="text-sm font-medium text-slate-400 mb-3">Seleziona tipo di turno:</p>
-                                <ShiftTypeOption
-                                    label="Standard"
-                                    value="standard"
-                                    selected={selectedShiftType === 'standard'}
-                                    onChange={() => handleShiftTypeChange('standard')}
-                                    disabled={false}
-                                />
-                                <ShiftTypeOption
-                                    label="Cassa"
-                                    value="cassa"
-                                    selected={selectedShiftType === 'cassa'}
-                                    onChange={() => handleShiftTypeChange('cassa')}
-                                    disabled={false}
-                                />
-                                <ShiftTypeOption
-                                    label="Macchina Propria"
-                                    value="macchina_propria"
-                                    selected={selectedShiftType === 'macchina_propria'}
-                                    onChange={() => handleShiftTypeChange('macchina_propria')}
-                                    disabled={false}
-                                />
-                                <ShiftTypeOption
-                                    label="Macchina Pizzeria"
-                                    value="macchina_pizzeria"
-                                    selected={selectedShiftType === 'macchina_pizzeria'}
-                                    onChange={() => handleShiftTypeChange('macchina_pizzeria')}
-                                    disabled={false}
-                                />
+                            <div className="space-y-2 mb-5">
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Tipo di turno</p>
+                                <ShiftTypeOption label="Standard" value="standard" selected={selectedShiftType === 'standard'} onChange={() => setSelectedShiftType('standard')} disabled={false} />
+                                <ShiftTypeOption label="Cassa" value="cassa" selected={selectedShiftType === 'cassa'} onChange={() => setSelectedShiftType('cassa')} disabled={false} />
+                                <ShiftTypeOption label="Macchina Propria" value="macchina_propria" selected={selectedShiftType === 'macchina_propria'} onChange={() => setSelectedShiftType('macchina_propria')} disabled={false} />
+                                <ShiftTypeOption label="Macchina Pizzeria" value="macchina_pizzeria" selected={selectedShiftType === 'macchina_pizzeria'} onChange={() => setSelectedShiftType('macchina_pizzeria')} disabled={false} />
                             </div>
                         )}
                         <button
                             onClick={handleClockClick}
                             disabled={!activeShift && !selectedShiftType}
-                            className={`w-full flex items-center justify-center gap-3 text-lg font-bold py-4 px-6 rounded-xl transition-all duration-300 transform focus:outline-none focus:ring-4 ${!activeShift && !selectedShiftType
-                                ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
-                                : activeShift
-                                    ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-red-500/30 focus:ring-red-400 hover:scale-[1.02] hover:shadow-lg'
-                                    : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-emerald-500/30 focus:ring-emerald-400 hover:scale-[1.02] hover:shadow-lg'
-                                }`}
+                            className={`w-full flex items-center justify-center gap-3 text-base font-bold py-4 px-6 rounded-xl transition-all shadow-lg ${
+                                !activeShift && !selectedShiftType
+                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none'
+                                    : activeShift
+                                        ? 'bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-red-200 hover:shadow-red-300 hover:scale-[1.02]'
+                                        : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-emerald-200 hover:shadow-emerald-300 hover:scale-[1.02]'
+                            }`}
                         >
-                            <ClockIcon className="w-7 h-7" />
+                            <ClockIcon className="w-6 h-6" />
                             {activeShift ? 'Timbra Uscita' : 'Timbra Entrata'}
                         </button>
                     </div>
 
-                    {/* Today's Shifts Panel */}
-                    <div className="glass-panel p-6 rounded-3xl">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-lg font-bold text-white">Oggi</h3>
-                            <span className="text-xs font-medium text-slate-400 bg-slate-800 px-2 py-1 rounded-lg">{formatDate(new Date())}</span>
+                    {/* Today */}
+                    <div className="glass-panel rounded-2xl p-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-slate-800">Oggi</h3>
+                            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-lg">{formatDate(new Date())}</span>
                         </div>
-                        <div className="flex flex-col gap-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                        <div className="flex flex-col gap-2 max-h-52 overflow-y-auto">
                             {activeShift && isSameDay(new Date(activeShift.startTime), new Date()) && <ShiftListItem shift={activeShift} />}
-                            {reversedTodayShifts.length > 0 ? (
-                                reversedTodayShifts.map(s => <ShiftListItem key={s.id} shift={s} />)
-                            ) : (!activeShift && <p className="text-slate-500 text-center py-4 text-sm">Nessuna attività registrata oggi.</p>)
+                            {todayShifts.length > 0
+                                ? todayShifts.map(s => <ShiftListItem key={s.id} shift={s} />)
+                                : !activeShift && <p className="text-slate-400 text-center py-4 text-sm">Nessuna attività oggi.</p>
                             }
                         </div>
                     </div>
 
-                    {/* My Shifts Panel */}
-                    <div className="glass-panel p-6 rounded-3xl">
+                    {/* My assigned shifts */}
+                    <div className="glass-panel rounded-2xl p-5">
                         <UserShiftsView assignedShifts={assignedShifts} />
                     </div>
                 </div>
 
                 <div className="lg:col-span-2">
-                    <div className="glass-panel p-6 rounded-3xl h-full">
+                    <div className="glass-panel rounded-2xl p-5 h-full">
                         <Calendar shifts={shifts} />
                     </div>
                 </div>
