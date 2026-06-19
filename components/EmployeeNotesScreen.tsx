@@ -87,7 +87,7 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
             id: `leave_${Date.now()}`,
             userId: selectedUser.id,
             startDate: leaveStartDate,
-            endDate: leaveEndDate || undefined,
+            ...(leaveEndDate ? { endDate: leaveEndDate } : {}),
             createdAt: new Date().toISOString()
         };
 
