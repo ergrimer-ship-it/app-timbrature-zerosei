@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mockup Redesign — Timbrature ZeroSei</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Inter, sans-serif;
+    background: #f0f4ff;
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+  h1 {
+    text-align: center;
+    color: #1e293b;
+    margin-bottom: 8px;
+    font-size: 22px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #64748b;
+    font-size: 14px;
+    margin-bottom: 40px;
+  }
+
+  .screens-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 32px;
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .screen-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .screen-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Phone shell */
+  .phone {
+    width: 280px;
+    height: 560px;
+    background: white;
+    border-radius: 36px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+    position: relative;
+    border: 6px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+  }
+  .phone::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 6px;
+    background: #1e293b;
+    border-radius: 3px;
+    z-index: 10;
+  }
+
+  /* ===== SCREEN: LOGIN ===== */
+  .login-screen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: white;
+  }
+  .login-top {
+    background: linear-gradient(145deg, #2563eb, #1d4ed8);
+    padding: 52px 24px 40px;
+    text-align: center;
+    color: white;
+  }
+  .login-logo {
+    width: 48px;
+    height: 48px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px;
+    font-size: 22px;
+  }
+  .login-top h2 { font-size: 20px; font-weight: 700; }
+  .login-top p { font-size: 12px; opacity: 0.8; margin-top: 4px; }
+  .login-body {
+    padding: 28px 24px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .input-group label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .input-mock {
+    width: 100%;
+    background: #f8faff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #1e293b;
+  }
+  .input-mock.filled { border-color: #2563eb; color: #2563eb; }
+  .btn-primary {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: white;
+    border: none;
+    border-radius: 14px;
+    padding: 13px;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+    margin-top: 6px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(37,99,235,0.4);
+  }
+  .login-footer {
+    text-align: center;
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 4px;
+  }
+  .login-footer span { color: #2563eb; font-weight: 600; }
+
+  /* ===== SCREEN: DASHBOARD DIPENDENTE ===== */
+  .dash-screen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #f8faff;
+  }
+  .dash-header {
+    background: linear-gradient(145deg, #2563eb, #1d4ed8);
+    padding: 42px 20px 52px;
+    color: white;
+    position: relative;
+  }
+  .dash-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .avatar-sm {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .notif-bell {
+    width: 32px;
+    height: 32px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    position: relative;
+  }
+  .notif-dot {
+    width: 8px; height: 8px;
+    background: #f59e0b;
+    border-radius: 50%;
+    position: absolute;
+    top: 5px; right: 5px;
+    border: 1.5px solid #1d4ed8;
+  }
+  .dash-greeting { font-size: 12px; opacity: 0.8; }
+  .dash-name { font-size: 17px; font-weight: 700; margin-top: 2px; }
+  .time-card {
+    background: white;
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    position: absolute;
+    bottom: -38px;
+    left: 16px; right: 16px;
+  }
+  .time-card-label { font-size: 10px; color: #94a3b8; font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+  .time-card-time { font-size: 26px; font-weight: 800; color: #1e293b; }
+  .time-card-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
+  .time-card-row { display: flex; justify-content: space-between; }
+  .time-card-divider { width: 1px; background: #e2e8f0; }
+
+  .dash-body {
+    flex: 1;
+    padding: 52px 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow: hidden;
+  }
+  .section-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 2px;
+  }
+  .clock-btn {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    border-radius: 14px;
+    padding: 13px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    box-shadow: 0 4px 14px rgba(16,185,129,0.35);
+  }
+  .clock-btn.out {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: 0 4px 14px rgba(239,68,68,0.35);
+  }
+  .shift-card {
+    background: white;
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .shift-dot {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: #eff6ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .shift-info { flex: 1; }
+  .shift-date { font-size: 12px; font-weight: 600; color: #1e293b; }
+  .shift-time { font-size: 11px; color: #64748b; margin-top: 1px; }
+  .shift-badge {
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 20px;
+  }
+
+  /* ===== SCREEN: ADMIN UTENTI ===== */
+  .admin-screen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #f8faff;
+  }
+  .admin-header {
+    background: linear-gradient(145deg, #2563eb, #1d4ed8);
+    padding: 42px 20px 20px;
+    color: white;
+  }
+  .admin-header h2 { font-size: 18px; font-weight: 800; }
+  .admin-header p { font-size: 11px; opacity: 0.75; margin-top: 3px; }
+  .search-bar {
+    background: rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 9px 12px;
+    margin-top: 14px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.7);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .admin-body {
+    flex: 1;
+    padding: 14px 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .user-card {
+    background: white;
+    border-radius: 14px;
+    padding: 11px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+  .user-avatar {
+    width: 38px; height: 38px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+  }
+  .user-avatar.green { background: linear-gradient(135deg, #10b981, #059669); }
+  .user-avatar.purple { background: linear-gradient(135deg, #7c3aed, #6d28d9); }
+  .user-avatar.orange { background: linear-gradient(135deg, #f59e0b, #d97706); }
+  .user-info { flex: 1; }
+  .user-name { font-size: 12px; font-weight: 700; color: #1e293b; }
+  .user-status { font-size: 10px; color: #64748b; margin-top: 1px; }
+  .user-status-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    margin-right: 4px;
+  }
+  .user-status-dot.off { background: #94a3b8; }
+  .user-arrow { font-size: 14px; color: #cbd5e1; }
+
+  /* ===== SCREEN: PIANIFICATORE ===== */
+  .planner-screen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #f8faff;
+  }
+  .planner-header {
+    background: linear-gradient(145deg, #2563eb, #1d4ed8);
+    padding: 42px 20px 20px;
+    color: white;
+  }
+  .planner-header h2 { font-size: 18px; font-weight: 800; }
+  .month-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 8px 14px;
+  }
+  .month-nav span { font-size: 13px; font-weight: 600; }
+  .month-nav-btn { font-size: 16px; opacity: 0.8; cursor: pointer; }
+  .planner-body {
+    flex: 1;
+    padding: 14px 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .day-card {
+    background: white;
+    border-radius: 14px;
+    padding: 12px 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+  .day-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .day-name { font-size: 12px; font-weight: 700; color: #1e293b; }
+  .day-badge {
+    font-size: 10px;
+    background: #eff6ff;
+    color: #2563eb;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .day-badge.amber {
+    background: #fffbeb;
+    color: #d97706;
+  }
+  .shift-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-top: 1px solid #f1f5f9;
+  }
+  .shift-user-dot {
+    width: 24px; height: 24px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    color: white;
+  }
+  .shift-user-dot.green { background: linear-gradient(135deg, #10b981, #059669); }
+  .shift-user-name { font-size: 11px; font-weight: 600; color: #334155; flex: 1; }
+  .shift-time-small { font-size: 10px; color: #2563eb; font-weight: 600; }
+  .leave-tag {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: #d97706;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 20px;
+    padding: 2px 8px;
+  }
+
+  /* ===== BOTTOM NAV ===== */
+  .bottom-nav {
+    display: flex;
+    background: white;
+    border-top: 1px solid #e2e8f0;
+    padding: 8px 0 12px;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-size: 9px;
+    color: #94a3b8;
+    font-weight: 600;
+  }
+  .nav-item.active { color: #2563eb; }
+  .nav-icon {
+    width: 26px; height: 26px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+  .nav-item.active .nav-icon {
+    background: #eff6ff;
+  }
+
+  /* Comparison label */
+  .compare-note {
+    text-align: center;
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 8px;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<h1>Anteprima Redesign — App Timbrature ZeroSei</h1>
+<p class="subtitle">Design ispirato all'immagine allegata · Palette bianco + blu · Card UI moderna</p>
+
+<div class="screens-row">
+
+  <!-- LOGIN -->
+  <div class="screen-wrapper">
+    <div class="screen-label">Login</div>
+    <div class="phone">
+      <div class="login-screen">
+        <div class="login-top">
+          <div class="login-logo">⏱</div>
+          <h2>ZeroSei Timbrature</h2>
+          <p>Accedi al tuo account</p>
+        </div>
+        <div class="login-body">
+          <div class="input-group">
+            <label>Nome</label>
+            <div class="input-mock filled">Mario</div>
+          </div>
+          <div class="input-group">
+            <label>Cognome</label>
+            <div class="input-mock filled">Rossi</div>
+          </div>
+          <div class="input-group">
+            <label>Password</label>
+            <div class="input-mock">••••••</div>
+          </div>
+          <div class="btn-primary">Accedi</div>
+          <div class="login-footer">Non hai un account? <span>Registrati</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="compare-note">Attuale: sfondo scuro slate-900</div>
+  </div>
+
+  <!-- DASHBOARD DIPENDENTE -->
+  <div class="screen-wrapper">
+    <div class="screen-label">Dashboard Dipendente</div>
+    <div class="phone">
+      <div class="dash-screen">
+        <div class="dash-header">
+          <div class="dash-header-row">
+            <div class="avatar-sm">MR</div>
+            <div class="notif-bell">🔔<div class="notif-dot"></div></div>
+          </div>
+          <div class="dash-greeting">Buonasera,</div>
+          <div class="dash-name">Mario Rossi</div>
+          <div class="time-card">
+            <div class="time-card-row">
+              <div>
+                <div class="time-card-label">Inizio turno</div>
+                <div class="time-card-time">18:32</div>
+                <div class="time-card-sub">Oggi, Venerdì</div>
+              </div>
+              <div class="time-card-divider"></div>
+              <div>
+                <div class="time-card-label">Ore lavorate</div>
+                <div class="time-card-time" style="color:#2563eb">2:14</div>
+                <div class="time-card-sub">In corso...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dash-body">
+          <div class="clock-btn out">⏹ Timbra Uscita</div>
+          <div class="section-title">Prossimi Turni</div>
+          <div class="shift-card">
+            <div class="shift-dot">📅</div>
+            <div class="shift-info">
+              <div class="shift-date">Sabato 21 Giugno</div>
+              <div class="shift-time">18:30 – 21:30</div>
+            </div>
+            <div class="shift-badge">Fra 2gg</div>
+          </div>
+          <div class="shift-card">
+            <div class="shift-dot">📅</div>
+            <div class="shift-info">
+              <div class="shift-date">Domenica 22 Giugno</div>
+              <div class="shift-time">18:30 – 21:30</div>
+            </div>
+            <div class="shift-badge">Fra 3gg</div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item active"><div class="nav-icon">🏠</div>Home</div>
+          <div class="nav-item"><div class="nav-icon">📅</div>Turni</div>
+          <div class="nav-item"><div class="nav-icon">📄</div>Documenti</div>
+          <div class="nav-item"><div class="nav-icon">👤</div>Profilo</div>
+        </div>
+      </div>
+    </div>
+    <div class="compare-note">Attuale: bg scuro + pulsante verde centrato</div>
+  </div>
+
+  <!-- ADMIN UTENTI -->
+  <div class="screen-wrapper">
+    <div class="screen-label">Admin — Lista Utenti</div>
+    <div class="phone">
+      <div class="admin-screen">
+        <div class="admin-header">
+          <h2>👥 Utenti</h2>
+          <p>Gestione dipendenti</p>
+          <div class="search-bar">🔍 Cerca dipendente...</div>
+        </div>
+        <div class="admin-body">
+          <div class="user-card">
+            <div class="user-avatar">AB</div>
+            <div class="user-info">
+              <div class="user-name">Bianchi Andrea</div>
+              <div class="user-status"><span class="user-status-dot"></span>Al lavoro</div>
+            </div>
+            <div class="user-arrow">›</div>
+          </div>
+          <div class="user-card">
+            <div class="user-avatar green">FC</div>
+            <div class="user-info">
+              <div class="user-name">Conti Francesca</div>
+              <div class="user-status"><span class="user-status-dot off"></span>Offline</div>
+            </div>
+            <div class="user-arrow">›</div>
+          </div>
+          <div class="user-card">
+            <div class="user-avatar purple">LM</div>
+            <div class="user-info">
+              <div class="user-name">Martini Luca</div>
+              <div class="user-status"><span class="user-status-dot off"></span>Offline</div>
+            </div>
+            <div class="user-arrow">›</div>
+          </div>
+          <div class="user-card">
+            <div class="user-avatar orange">SR</div>
+            <div class="user-info">
+              <div class="user-name">Rossi Simona</div>
+              <div class="user-status"><span class="user-status-dot"></span>Al lavoro</div>
+            </div>
+            <div class="user-arrow">›</div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item"><div class="nav-icon">📡</div>Live</div>
+          <div class="nav-item active"><div class="nav-icon">👥</div>Utenti</div>
+          <div class="nav-item"><div class="nav-icon">📅</div>Turni</div>
+          <div class="nav-item"><div class="nav-icon">📊</div>Riepilogo</div>
+        </div>
+      </div>
+    </div>
+    <div class="compare-note">Attuale: griglia card su sfondo scuro</div>
+  </div>
+
+  <!-- PIANIFICATORE TURNI -->
+  <div class="screen-wrapper">
+    <div class="screen-label">Pianificatore Turni</div>
+    <div class="phone">
+      <div class="planner-screen">
+        <div class="planner-header">
+          <h2>📋 Pianificazione</h2>
+          <div class="month-nav">
+            <span class="month-nav-btn">‹</span>
+            <span>Luglio 2026</span>
+            <span class="month-nav-btn">›</span>
+          </div>
+        </div>
+        <div class="planner-body">
+          <div class="day-card">
+            <div class="day-card-header">
+              <div class="day-name">Martedì 1 Luglio</div>
+              <div class="day-badge">2 turni</div>
+            </div>
+            <div class="shift-row">
+              <div class="shift-user-dot">AB</div>
+              <div class="shift-user-name">Bianchi Andrea</div>
+              <div class="shift-time-small">18:30–21:30</div>
+            </div>
+            <div class="shift-row">
+              <div class="shift-user-dot green">SR</div>
+              <div class="shift-user-name">Rossi Simona</div>
+              <div class="shift-time-small">18:30–21:30</div>
+            </div>
+          </div>
+          <div class="day-card">
+            <div class="day-card-header">
+              <div class="day-name">Mercoledì 2 Luglio</div>
+              <div class="day-badge amber">✈️ permesso</div>
+            </div>
+            <div class="leave-tag">✈️ Conti Francesca: permesso</div>
+            <div class="shift-row">
+              <div class="shift-user-dot purple">LM</div>
+              <div class="shift-user-name">Martini Luca</div>
+              <div class="shift-time-small">18:30–21:30</div>
+            </div>
+          </div>
+          <div class="day-card">
+            <div class="day-card-header">
+              <div class="day-name">Giovedì 3 Luglio</div>
+              <div class="day-badge">1 turno</div>
+            </div>
+            <div class="shift-row">
+              <div class="shift-user-dot">AB</div>
+              <div class="shift-user-name">Bianchi Andrea</div>
+              <div class="shift-time-small">18:30–21:30</div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item"><div class="nav-icon">📡</div>Live</div>
+          <div class="nav-item"><div class="nav-icon">👥</div>Utenti</div>
+          <div class="nav-item active"><div class="nav-icon">📅</div>Turni</div>
+          <div class="nav-item"><div class="nav-icon">📊</div>Riepilogo</div>
+        </div>
+      </div>
+    </div>
+    <div class="compare-note">Attuale: bg grigio scuro + testo blu</div>
+  </div>
+
+</div>
+
+<div style="text-align:center; margin-top:48px; padding: 24px; background: white; border-radius: 16px; max-width: 640px; margin-left: auto; margin-right: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
+  <p style="font-size:15px; font-weight:700; color:#1e293b; margin-bottom:10px;">Riepilogo cambiamenti di design</p>
+  <table style="width:100%; font-size:12px; border-collapse:collapse;">
+    <tr style="background:#f8faff;">
+      <th style="padding:8px 12px; text-align:left; color:#64748b;">Elemento</th>
+      <th style="padding:8px 12px; text-align:left; color:#64748b;">Attuale</th>
+      <th style="padding:8px 12px; text-align:left; color:#64748b;">Nuovo</th>
+    </tr>
+    <tr><td style="padding:8px 12px; border-top:1px solid #f1f5f9;">Sfondo app</td><td style="padding:8px 12px; border-top:1px solid #f1f5f9; color:#64748b;">Slate-900 (quasi nero)</td><td style="padding:8px 12px; border-top:1px solid #f1f5f9; color:#2563eb;">Bianco / f8faff</td></tr>
+    <tr><td style="padding:8px 12px; border-top:1px solid #f1f5f9;">Header/top</td><td style="padding:8px 12px; border-top:1px solid #f1f5f9; color:#64748b;">Sfumatura indigo scura</td><td style="padding:8px 12px; border-top:1px solid #f1f5f9; color:#2563eb;">Blu #2563eb → #1d4ed8</td></tr>
+    <tr><td style="padding:8px 12px; border-top:1px solid #f1f5f9;">Card</td><td style="padding:8px 12px; border-top:1px solid #f1f5f9; color:#64748b;">Slate-800/40 semitrasparente</td><td style="padding:8px 12px; border-top:1px solid #f1f5f9; color:#2563eb;">Bianco con ombra leggera</td></tr>
+    <tr><td style="padding:8px 12px; border-top:1px solid #f1f5f9;">Navigazione</td><td style="padding:8px 12px; border-top:1px solid #f1f5f9; color:#64748b;">Sidebar laterale</td><td style="padding:8px 12px; border-top:1px solid #f1f5f9; color:#2563eb;">Bottom nav bar</td></tr>
+    <tr><td style="padding:8px 12px; border-top:1px solid #f1f5f9;">Testo</td><td style="padding:8px 12px; border-top:1px solid #f1f5f9; color:#64748b;">Slate-200 (chiaro su scuro)</td><td style="padding:8px 12px; border-top:1px solid #f1f5f9; color:#2563eb;">Slate-800 (scuro su bianco)</td></tr>
+    <tr><td style="padding:8px 12px; border-top:1px solid #f1f5f9;">Avatar utenti</td><td style="padding:8px 12px; border-top:1px solid #f1f5f9; color:#64748b;">Initiali su sfondo slate</td><td style="padding:8px 12px; border-top:1px solid #f1f5f9; color:#2563eb;">Gradient colorato per utente</td></tr>
+  </table>
+  <p style="margin-top:16px; font-size:12px; color:#94a3b8;">⚠️ Il cambio più impattante è la sidebar → bottom nav: richiede refactor del componente Layout.tsx</p>
+</div>
+
+</body>
+</html>

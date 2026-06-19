@@ -9,6 +9,12 @@ interface ShiftPlannerProps {
     onSaveShifts: (shifts: AssignedShift[]) => void;
 }
 
+const AVATAR_GRADIENTS = [
+    'from-blue-500 to-indigo-600', 'from-emerald-500 to-teal-600',
+    'from-violet-500 to-purple-600', 'from-orange-500 to-amber-500',
+    'from-rose-500 to-pink-600', 'from-cyan-500 to-sky-600',
+];
+
 const toDateKey = (date: Date): string => {
     const y = date.getFullYear();
     const m = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -118,7 +124,7 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
             <div className="screen-header rounded-b-3xl">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold">Pianificazione Turni</h1>
+                        <h1 className="text-2xl font-bold">📅 Pianificazione Turni</h1>
                         <p className="text-blue-200 text-sm mt-1">Gestisci i turni del mese</p>
                     </div>
                     <button
@@ -171,8 +177,15 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
                             )}
 
                             <div className="space-y-2">
-                                {shifts.map(shift => (
-                                    <div key={shift.id} className="grid grid-cols-1 sm:grid-cols-[1fr,auto,auto,auto] gap-2 items-center bg-slate-50 rounded-xl p-2">
+                                {shifts.map(shift => {
+                                    const userIdx = allUsers.findIndex(u => u.id === shift.userId);
+                                    const gradient = userIdx >= 0 ? AVATAR_GRADIENTS[userIdx % AVATAR_GRADIENTS.length] : null;
+                                    const selectedUser = userIdx >= 0 ? allUsers[userIdx] : null;
+                                    return (
+                                    <div key={shift.id} className="grid grid-cols-1 sm:grid-cols-[auto,1fr,auto,auto,auto] gap-2 items-center bg-slate-50 rounded-xl p-2">
+                                        <div className={`w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-xs font-bold ${gradient ? `bg-gradient-to-br ${gradient}` : 'bg-slate-300'}`}>
+                                            {selectedUser ? `${selectedUser.name.charAt(0)}${selectedUser.surname.charAt(0)}` : '?'}
+                                        </div>
                                         <select
                                             value={shift.userId}
                                             onChange={(e) => handleUpdateShift(shift.id, 'userId', e.target.value)}
@@ -197,7 +210,8 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
                                             <TrashIcon />
                                         </button>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                             <button
                                 onClick={() => handleAddShift(date)}

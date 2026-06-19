@@ -9,42 +9,77 @@ interface ProfileScreenProps {
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user }) => {
     const [newPassword, setNewPassword] = useState('');
     const [message, setMessage] = useState<string | null>(null);
+    const [isError, setIsError] = useState(false);
 
     const handleChangePassword = async () => {
-        if (!user) return;
+        if (!user || !newPassword.trim()) return;
         try {
             await updatePassword(user.email, newPassword);
             setMessage('Password aggiornata con successo');
-        } catch (e) {
+            setIsError(false);
+            setNewPassword('');
+        } catch {
             setMessage('Errore aggiornamento password');
+            setIsError(true);
         }
     };
 
     return (
-        <div className="max-w-xl mx-auto p-6 bg-gray-800 rounded-xl shadow-lg">
-            <h2 className="text-2xl font-bold text-white mb-4">Profilo</h2>
+        <div className="space-y-5">
+            <div className="screen-header rounded-b-3xl">
+                <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-3xl font-bold">
+                        {user ? `${user.name.charAt(0)}${user.surname.charAt(0)}` : '👤'}
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold">👤 Profilo</h1>
+                        {user && <p className="text-blue-200 text-sm mt-0.5">{user.name} {user.surname}</p>}
+                    </div>
+                </div>
+            </div>
+
             {user && (
-                <div className="mb-4 text-gray-200">
-                    <p><strong>Nome:</strong> {user.name} {user.surname}</p>
-                    <p><strong>Email:</strong> {user.email}</p>
+                <div className="glass-panel rounded-2xl p-5 space-y-4">
+                    <h2 className="font-bold text-slate-800 mb-4">Informazioni</h2>
+                    <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                        <span className="text-slate-500 text-sm">Nome</span>
+                        <span className="font-semibold text-slate-800">{user.name}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                        <span className="text-slate-500 text-sm">Cognome</span>
+                        <span className="font-semibold text-slate-800">{user.surname}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-3">
+                        <span className="text-slate-500 text-sm">Ruolo</span>
+                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${user.isAdmin ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {user.isAdmin ? 'Amministratore' : 'Dipendente'}
+                        </span>
+                    </div>
                 </div>
             )}
-            <div className="mb-4">
+
+            <div className="glass-panel rounded-2xl p-5">
+                <h2 className="font-bold text-slate-800 mb-4">🔐 Cambia Password</h2>
                 <input
                     type="password"
                     placeholder="Nuova password"
-                    className="w-full p-2 bg-gray-700 text-white rounded"
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
+                    className="glass-input w-full px-4 py-3 rounded-xl mb-3"
                 />
                 <button
-                    className="mt-2 w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded"
                     onClick={handleChangePassword}
+                    disabled={!newPassword.trim()}
+                    className="glass-button w-full py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    Cambia password
+                    Aggiorna Password
                 </button>
+                {message && (
+                    <p className={`text-sm text-center mt-3 font-medium ${isError ? 'text-red-500' : 'text-emerald-600'}`}>
+                        {message}
+                    </p>
+                )}
             </div>
-            {message && <p className="text-green-400">{message}</p>}
         </div>
     );
 };

@@ -105,7 +105,7 @@ export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = ({ assignedShif
             <div className="screen-header rounded-b-3xl">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold">Live</h1>
+                        <h1 className="text-2xl font-bold">📡 Live</h1>
                         <p className="text-blue-200 text-sm mt-1">Dipendenti in servizio ora</p>
                     </div>
                     <div className="flex items-center gap-2 bg-white/15 px-3 py-1.5 rounded-full">

@@ -68,7 +68,7 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ allU
             <div className="screen-header rounded-b-3xl">
                 <div className="flex items-start justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold">Gestione Utenti</h1>
+                        <h1 className="text-2xl font-bold">👥 Gestione Utenti</h1>
                         <p className="text-blue-200 text-sm mt-1">{allUsers.length} dipendenti registrati</p>
                     </div>
                     <button

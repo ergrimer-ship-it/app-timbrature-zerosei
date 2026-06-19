@@ -9,45 +9,26 @@ interface ConfirmDeleteModalProps {
 
 export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({ isOpen, onClose, onConfirm, userName }) => {
     if (!isOpen) return null;
-
     return (
-        <div 
-            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50"
-            onClick={onClose}
-        >
-            <div 
-                className="bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 relative transform transition-all animate-fade-in-up"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <h2 className="text-xl font-bold text-white mb-2">Conferma Eliminazione</h2>
-                <p className="text-gray-300 mb-6">
-                    Sei sicuro di voler eliminare l'utente <span className="font-bold text-yellow-400">{userName}</span>? 
-                    Questa azione è irreversibile e cancellerà tutti i dati associati.
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-fade-in" onClick={e => e.stopPropagation()}>
+                <div className="text-4xl text-center mb-3">⚠️</div>
+                <h2 className="text-lg font-bold text-slate-800 text-center mb-2">Conferma Eliminazione</h2>
+                <p className="text-slate-500 text-sm text-center mb-6">
+                    Sei sicuro di voler eliminare <span className="font-bold text-slate-800">{userName}</span>?
+                    Questa azione è irreversibile.
                 </p>
-                <div className="flex justify-end gap-4">
-                    <button 
-                        onClick={onClose}
-                        className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white font-semibold rounded-lg transition-colors"
-                    >
+                <div className="flex gap-3">
+                    <button onClick={onClose}
+                        className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-colors">
                         Annulla
                     </button>
-                    <button 
-                        onClick={onConfirm}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors"
-                    >
-                        Elimina Utente
+                    <button onClick={onConfirm}
+                        className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-colors">
+                        Elimina
                     </button>
                 </div>
             </div>
-             <style>{`
-                @keyframes fade-in-up {
-                    from { opacity: 0; transform: translateY(20px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-                .animate-fade-in-up {
-                    animation: fade-in-up 0.3s ease-out forwards;
-                }
-            `}</style>
         </div>
     );
 };

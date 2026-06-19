@@ -69,7 +69,7 @@ export const LeaveSummaryScreen: React.FC = () => {
             <div className="screen-header rounded-b-3xl">
                 <div className="flex items-center justify-between mb-5">
                     <div>
-                        <h1 className="text-2xl font-bold">Riepilogo Permessi</h1>
+                        <h1 className="text-2xl font-bold">🏖️ Riepilogo Permessi</h1>
                         <p className="text-blue-200 text-sm mt-1">Ferie e assenze dei dipendenti</p>
                     </div>
                 </div>
