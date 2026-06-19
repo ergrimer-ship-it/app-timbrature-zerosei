@@ -18,7 +18,7 @@ import { LeaveSummaryScreen } from './components/LeaveSummaryScreen';
 import { login, register, subscribeAuth, logout } from './authService';
 import { getAllUsers, deleteUser, getShifts, addShift, deleteShift, setActiveShift as setActiveShiftDb, getActiveShift as getActiveShiftDb, clearActiveShift as clearActiveShiftDb, saveAssignedShifts, getAssignedShifts, onActiveShiftChange } from './services/dbService';
 import { requestNotificationPermission, setupForegroundMessageListener } from './services/notificationService';
-import { createNotification, listenToAdminNotifications, showBrowserNotification } from './services/localNotificationService';
+import { createNotification, listenToAdminNotifications } from './services/localNotificationService';
 import { scheduleShiftReminders, clearAllReminders } from './services/shiftReminderService';
 
 const App: React.FC = () => {
@@ -73,13 +73,12 @@ const App: React.FC = () => {
                     fcmListenerActive.current = true;
                 }
 
-                // Setup Firestore notification listener (cleanup previous if any)
+                // Setup Firestore notification listener (solo per sync UI, le push le gestisce FCM)
                 notifUnsubRef.current?.();
                 if (u.isAdmin) {
                     setViewMode('live');
-                    notifUnsubRef.current = listenToAdminNotifications((notification) => {
-                        showBrowserNotification('Timbratura Dipendente', notification.message);
-                    });
+                    // Listener attivo per aggiornamenti UI futuri (senza mostrare browser notification — ci pensa FCM)
+                    notifUnsubRef.current = listenToAdminNotifications(() => {});
                 } else {
                     setViewMode('dashboard');
                     // Auto-load shifts on session restore (no need to re-login)
@@ -89,11 +88,8 @@ const App: React.FC = () => {
                     } catch (error) {
                         console.error('Failed to auto-load shifts:', error);
                     }
-                    notifUnsubRef.current = listenToAdminNotifications((notification) => {
-                        if (notification.userId === u.id && notification.type === 'document_upload') {
-                            showBrowserNotification('Nuovo Documento', notification.message);
-                        }
-                    });
+                    // Documenti: FCM gestisce già la push, il listener qui è solo per sync
+                    notifUnsubRef.current = listenToAdminNotifications(() => {});
                 }
             } else {
                 // Logout: cleanup listeners and reset refs
