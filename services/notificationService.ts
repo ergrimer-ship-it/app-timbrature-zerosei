@@ -21,8 +21,9 @@ export const requestNotificationPermission = async (userId: string): Promise<str
         if (permission === 'granted') {
             console.log('Notification permission granted');
 
-            // Get FCM token
-            const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+            // Get FCM token — usa il SW già registrato (Workbox unificato)
+            const swRegistration = await navigator.serviceWorker.ready;
+            const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swRegistration });
 
             if (token) {
                 console.log('FCM Token:', token);

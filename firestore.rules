@@ -68,6 +68,14 @@ service cloud.firestore {
        allow write: if isAdmin();
     }
 
+    // Notifications - timbrature in tempo reale per admin
+    match /notifications/{notifId} {
+      // Admin legge tutte, dipendente può creare la sua
+      allow read: if isAdmin();
+      allow create: if request.auth != null;
+      allow update, delete: if isAdmin();
+    }
+
     // Leave Requests - richieste permesso dai dipendenti
     match /leaveRequests/{requestId} {
       // Dipendente legge solo le sue, admin legge tutte
