@@ -62,7 +62,7 @@ export const ShiftDetailModal: React.FC<ShiftDetailModalProps> = ({ date, shifts
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-4 z-50" onClick={onClose}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 animate-fade-in" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 animate-fade-in mb-20 sm:mb-0" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-4">
                     <div>
                         <h2 className="text-lg font-bold text-slate-800">📅 Dettaglio Turni</h2>

@@ -83,12 +83,13 @@ export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assigned
     };
 
     return (
-        <div className="space-y-6">
-            <header>
-                <h1 className="text-3xl font-bold text-white mb-2">Panoramica Turni</h1>
-                <p className="text-slate-400">Visualizza i turni settimanali di tutti i dipendenti. Clicca su un turno per modificarlo.</p>
-            </header>
-            <div className="glass-panel p-6 rounded-3xl shadow-lg">
+        <div className="space-y-5">
+            <div className="screen-header rounded-b-3xl">
+                <h1 className="text-2xl font-bold">📅 Panoramica Turni</h1>
+                <p className="text-blue-200 text-sm mt-1">Turni settimanali — clicca per modificare</p>
+            </div>
+
+            <div className="glass-panel rounded-2xl p-5">
                 <WeeklyCalendar
                     shifts={allShifts}
                     assignedShifts={assignedShifts}

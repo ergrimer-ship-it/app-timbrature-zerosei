@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import type { User, SalaryAdvance, FutureLeave } from '../types';
-import { getSalaryAdvances, addSalaryAdvance, deleteSalaryAdvance, getFutureLeaves, addFutureLeave, deleteFutureLeave } from '../services/dbService';
+import type { User, SalaryAdvance, FutureLeave, LeaveRequest } from '../types';
+import { getSalaryAdvances, addSalaryAdvance, deleteSalaryAdvance, getFutureLeaves, addFutureLeave, deleteFutureLeave, addLeaveRequest, getUserLeaveRequests } from '../services/dbService';
 
 interface EmployeeNotesScreenProps {
     selectedUser: User;
@@ -10,22 +10,37 @@ interface EmployeeNotesScreenProps {
 export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ selectedUser, isAdmin }) => {
     const [advances, setAdvances] = useState<SalaryAdvance[]>([]);
     const [leaves, setLeaves] = useState<FutureLeave[]>([]);
+    const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
     const [loading, setLoading] = useState(true);
 
     const [advanceAmount, setAdvanceAmount] = useState('');
     const [advanceDate, setAdvanceDate] = useState('');
     const [advanceNotes, setAdvanceNotes] = useState('');
+
+    // Admin-only: aggiunta manuale permesso confermato
     const [leaveStartDate, setLeaveStartDate] = useState('');
     const [leaveEndDate, setLeaveEndDate] = useState('');
+
+    // Dipendente: richiesta permesso
+    const [reqStartDate, setReqStartDate] = useState('');
+    const [reqEndDate, setReqEndDate] = useState('');
+    const [reqNotes, setReqNotes] = useState('');
+    const [reqSending, setReqSending] = useState(false);
+    const [reqSuccess, setReqSuccess] = useState(false);
 
     useEffect(() => { loadData(); }, [selectedUser.id]);
 
     const loadData = async () => {
         setLoading(true);
         try {
-            const [adv, lv] = await Promise.all([getSalaryAdvances(selectedUser.id), getFutureLeaves(selectedUser.id)]);
+            const [adv, lv, reqs] = await Promise.all([
+                getSalaryAdvances(selectedUser.id),
+                getFutureLeaves(selectedUser.id),
+                !isAdmin ? getUserLeaveRequests(selectedUser.id) : Promise.resolve([]),
+            ]);
             setAdvances(adv);
             setLeaves(lv);
+            setLeaveRequests(reqs);
         } finally { setLoading(false); }
     };
 
@@ -70,6 +85,29 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
         if (!confirm('Eliminare questo permesso?')) return;
         await deleteFutureLeave(selectedUser.id, id);
         setLeaves(prev => prev.filter(l => l.id !== id));
+    };
+
+    const handleSendRequest = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!reqStartDate) return;
+        setReqSending(true);
+        try {
+            const req: LeaveRequest = {
+                id: `req_${Date.now()}`,
+                userId: selectedUser.id,
+                userName: `${selectedUser.name} ${selectedUser.surname}`,
+                startDate: reqStartDate,
+                ...(reqEndDate ? { endDate: reqEndDate } : {}),
+                ...(reqNotes.trim() ? { notes: reqNotes.trim() } : {}),
+                status: 'pending',
+                requestedAt: new Date().toISOString(),
+            };
+            await addLeaveRequest(req);
+            setLeaveRequests(prev => [req, ...prev]);
+            setReqStartDate(''); setReqEndDate(''); setReqNotes('');
+            setReqSuccess(true);
+            setTimeout(() => setReqSuccess(false), 3000);
+        } finally { setReqSending(false); }
     };
 
     const fmtCurrency = (n: number) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n);
@@ -199,6 +237,83 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
                     </div>
                 </div>
             </div>
+
+            {/* Sezione richieste permesso (solo dipendente) */}
+            {!isAdmin && (
+                <div className="glass-panel rounded-2xl p-5">
+                    <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        📤 Richiedi Permesso
+                    </h2>
+
+                    <form onSubmit={handleSendRequest} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 mb-5">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-xs text-slate-500 block mb-1">Data Inizio *</label>
+                                <input type="date" value={reqStartDate} onChange={e => setReqStartDate(e.target.value)}
+                                    className="glass-input w-full px-3 py-2 rounded-xl text-sm" required />
+                            </div>
+                            <div>
+                                <label className="text-xs text-slate-500 block mb-1">Data Fine (opzionale)</label>
+                                <input type="date" value={reqEndDate} onChange={e => setReqEndDate(e.target.value)}
+                                    className="glass-input w-full px-3 py-2 rounded-xl text-sm" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs text-slate-500 block mb-1">Nota / Motivo (opzionale)</label>
+                            <textarea value={reqNotes} onChange={e => setReqNotes(e.target.value)}
+                                className="glass-input w-full px-3 py-2 rounded-xl text-sm resize-none" rows={2}
+                                placeholder="es. Visita medica, impegno familiare..." />
+                        </div>
+                        {reqSuccess && (
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-emerald-700 text-sm text-center font-semibold">
+                                ✅ Richiesta inviata con successo!
+                            </div>
+                        )}
+                        <button type="submit" disabled={reqSending || !reqStartDate}
+                            className="w-full py-2.5 rounded-xl font-bold text-white text-sm glass-button disabled:opacity-50">
+                            {reqSending ? 'Invio...' : '📤 Invia Richiesta'}
+                        </button>
+                    </form>
+
+                    {/* Lista richieste proprie */}
+                    {leaveRequests.length > 0 && (
+                        <div className="space-y-2">
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Le tue richieste</p>
+                            {leaveRequests.map(req => {
+                                const statusStyle =
+                                    req.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                    req.status === 'rejected' ? 'bg-red-50 text-red-600 border-red-200' :
+                                    'bg-amber-50 text-amber-700 border-amber-200';
+                                const statusLabel =
+                                    req.status === 'approved' ? '✅ Approvato' :
+                                    req.status === 'rejected' ? '❌ Rifiutato' : '⏳ In attesa';
+                                const days = req.endDate
+                                    ? Math.ceil((new Date(req.endDate).getTime() - new Date(req.startDate).getTime()) / 86400000) + 1
+                                    : 1;
+                                return (
+                                    <div key={req.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                                <p className="font-semibold text-slate-700 text-sm">
+                                                    {fmtDate(req.startDate)}{req.endDate ? ` – ${fmtDate(req.endDate)}` : ''}
+                                                    <span className="text-slate-400 ml-1">({days}gg)</span>
+                                                </p>
+                                                {req.notes && <p className="text-xs text-slate-500 mt-0.5">{req.notes}</p>}
+                                                <p className="text-xs text-slate-400 mt-0.5">
+                                                    Inviata {new Date(req.requestedAt).toLocaleDateString('it-IT')}
+                                                </p>
+                                            </div>
+                                            <span className={`text-xs font-bold px-2 py-1 rounded-full border flex-shrink-0 ${statusStyle}`}>
+                                                {statusLabel}
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

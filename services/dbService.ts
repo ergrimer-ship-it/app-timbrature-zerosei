@@ -11,7 +11,7 @@ import {
     query,
     where,
 } from 'firebase/firestore';
-import type { User, Shift, PublicUser, AssignedShift, Document, SalaryAdvance, FutureLeave } from '../types';
+import type { User, Shift, PublicUser, AssignedShift, Document, SalaryAdvance, FutureLeave, LeaveRequest } from '../types';
 
 /** Get password for a user (admin only) — reads from adminPasswords collection */
 export const getUserPassword = async (userId: string): Promise<string | null> => {
@@ -260,6 +260,53 @@ export const getFutureLeaves = async (userId: string): Promise<FutureLeave[]> =>
 
 export const deleteFutureLeave = async (userId: string, leaveId: string): Promise<void> => {
     await deleteDoc(doc(db, 'users', userId, 'futureLeaves', leaveId));
+};
+
+// Leave Requests Service
+
+export const addLeaveRequest = async (request: LeaveRequest): Promise<void> => {
+    await setDoc(doc(db, 'leaveRequests', request.id), request);
+};
+
+export const getAllLeaveRequests = async (): Promise<LeaveRequest[]> => {
+    const snap = await getDocs(collection(db, 'leaveRequests'));
+    return snap.docs
+        .map(d => d.data() as LeaveRequest)
+        .sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
+};
+
+export const getUserLeaveRequests = async (userId: string): Promise<LeaveRequest[]> => {
+    const q = query(collection(db, 'leaveRequests'), where('userId', '==', userId));
+    const snap = await getDocs(q);
+    return snap.docs
+        .map(d => d.data() as LeaveRequest)
+        .sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
+};
+
+export const approveLeaveRequest = async (request: LeaveRequest): Promise<void> => {
+    // Aggiorna stato richiesta
+    await setDoc(doc(db, 'leaveRequests', request.id), {
+        ...request,
+        status: 'approved',
+        reviewedAt: new Date().toISOString(),
+    });
+    // Crea permesso confermato
+    const leave: FutureLeave = {
+        id: `leave_${request.id}`,
+        userId: request.userId,
+        startDate: request.startDate,
+        ...(request.endDate ? { endDate: request.endDate } : {}),
+        createdAt: new Date().toISOString(),
+    };
+    await addFutureLeave(request.userId, leave);
+};
+
+export const rejectLeaveRequest = async (request: LeaveRequest): Promise<void> => {
+    await setDoc(doc(db, 'leaveRequests', request.id), {
+        ...request,
+        status: 'rejected',
+        reviewedAt: new Date().toISOString(),
+    });
 };
 
 // Backup Export Service

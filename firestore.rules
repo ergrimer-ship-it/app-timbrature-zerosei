@@ -67,5 +67,18 @@ service cloud.firestore {
        allow read: if request.auth != null;
        allow write: if isAdmin();
     }
+
+    // Leave Requests - richieste permesso dai dipendenti
+    match /leaveRequests/{requestId} {
+      // Dipendente legge solo le sue, admin legge tutte
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      // Dipendente crea solo la sua
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+      // Solo admin può aggiornare (approvare/rifiutare)
+      allow update, delete: if isAdmin();
+    }
   }
 }

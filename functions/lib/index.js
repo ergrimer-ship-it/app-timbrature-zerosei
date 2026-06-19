@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onNewNotification = exports.handleShiftReminder = exports.checkLateClockout = exports.scheduleDailyShiftTasks = exports.onAssignedShiftsUpdated = void 0;
+exports.onNewNotification = exports.onLeaveRequestUpdated = exports.onLeaveRequestCreated = exports.handleShiftReminder = exports.checkLateClockout = exports.scheduleDailyShiftTasks = exports.onAssignedShiftsUpdated = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const https_1 = require("firebase-functions/v2/https");
@@ -168,6 +168,32 @@ exports.handleShiftReminder = (0, https_1.onRequest)({ region: LOCATION, invoker
         await sendPush(userId, 'Uscita non timbrata', `Sono le ${endTime}, ricordati di timbrare l'uscita!`);
     }
     res.sendStatus(200);
+});
+// Notifica admin quando un dipendente invia una richiesta permesso
+exports.onLeaveRequestCreated = (0, firestore_1.onDocumentCreated)({ document: 'leaveRequests/{requestId}', region: LOCATION }, async (event) => {
+    var _a, _b;
+    const data = (_a = event.data) === null || _a === void 0 ? void 0 : _a.data();
+    if (!data)
+        return;
+    await sendPushToAllAdmins('🏖️ Nuova Richiesta Permesso', `${(_b = data.userName) !== null && _b !== void 0 ? _b : 'Un dipendente'} ha inviato una richiesta di permesso`);
+});
+// Notifica dipendente quando admin approva o rifiuta la richiesta
+exports.onLeaveRequestUpdated = (0, firestore_1.onDocumentUpdated)({ document: 'leaveRequests/{requestId}', region: LOCATION }, async (event) => {
+    var _a, _b, _c, _d;
+    const before = (_b = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before) === null || _b === void 0 ? void 0 : _b.data();
+    const after = (_d = (_c = event.data) === null || _c === void 0 ? void 0 : _c.after) === null || _d === void 0 ? void 0 : _d.data();
+    if (!before || !after)
+        return;
+    if (before.status === after.status)
+        return; // nessun cambio stato
+    if (!after.userId)
+        return;
+    if (after.status === 'approved') {
+        await sendPush(after.userId, '✅ Permesso Approvato', 'La tua richiesta di permesso è stata approvata!');
+    }
+    else if (after.status === 'rejected') {
+        await sendPush(after.userId, '❌ Permesso Rifiutato', 'La tua richiesta di permesso è stata rifiutata.');
+    }
 });
 // Notifica push agli admin quando un dipendente timbra entrata o uscita
 exports.onNewNotification = (0, firestore_1.onDocumentCreated)({ document: 'notifications/{notifId}', region: LOCATION }, async (event) => {

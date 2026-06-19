@@ -55,11 +55,24 @@ export interface SalaryAdvance {
   createdAt: string; // ISO string
 }
 
-// Permesso futuro
+// Permesso futuro confermato
 export interface FutureLeave {
   id: string;
   userId: string;
-  startDate: string; // ISO string (YYYY-MM-DD)
-  endDate?: string; // ISO string (YYYY-MM-DD) - opzionale per permessi di un solo giorno
+  startDate: string; // YYYY-MM-DD
+  endDate?: string;  // YYYY-MM-DD - opzionale per permessi di un solo giorno
   createdAt: string; // ISO string
+}
+
+// Richiesta permesso (inviata dal dipendente, in attesa di approvazione)
+export interface LeaveRequest {
+  id: string;
+  userId: string;
+  userName: string; // "Nome Cognome" — usato nelle notifiche
+  startDate: string; // YYYY-MM-DD
+  endDate?: string;  // YYYY-MM-DD
+  notes?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: string; // ISO string
+  reviewedAt?: string; // ISO string
 }

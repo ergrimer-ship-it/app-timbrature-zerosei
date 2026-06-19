@@ -1,4 +1,4 @@
-import { onDocumentWritten, onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onDocumentWritten, onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onRequest } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
@@ -217,6 +217,37 @@ export const handleShiftReminder = onRequest(
         }
 
         res.sendStatus(200);
+    }
+);
+
+// Notifica admin quando un dipendente invia una richiesta permesso
+export const onLeaveRequestCreated = onDocumentCreated(
+    { document: 'leaveRequests/{requestId}', region: LOCATION },
+    async (event) => {
+        const data = event.data?.data() as { userName?: string } | undefined;
+        if (!data) return;
+        await sendPushToAllAdmins(
+            '🏖️ Nuova Richiesta Permesso',
+            `${data.userName ?? 'Un dipendente'} ha inviato una richiesta di permesso`
+        );
+    }
+);
+
+// Notifica dipendente quando admin approva o rifiuta la richiesta
+export const onLeaveRequestUpdated = onDocumentUpdated(
+    { document: 'leaveRequests/{requestId}', region: LOCATION },
+    async (event) => {
+        const before = event.data?.before?.data() as { status?: string; userId?: string } | undefined;
+        const after  = event.data?.after?.data()  as { status?: string; userId?: string } | undefined;
+        if (!before || !after) return;
+        if (before.status === after.status) return; // nessun cambio stato
+        if (!after.userId) return;
+
+        if (after.status === 'approved') {
+            await sendPush(after.userId, '✅ Permesso Approvato', 'La tua richiesta di permesso è stata approvata!');
+        } else if (after.status === 'rejected') {
+            await sendPush(after.userId, '❌ Permesso Rifiutato', 'La tua richiesta di permesso è stata rifiutata.');
+        }
     }
 );
 

@@ -11,7 +11,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({ isOpen, 
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-fade-in" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-fade-in mb-20 sm:mb-0" onClick={e => e.stopPropagation()}>
                 <div className="text-4xl text-center mb-3">⚠️</div>
                 <h2 className="text-lg font-bold text-slate-800 text-center mb-2">Conferma Eliminazione</h2>
                 <p className="text-slate-500 text-sm text-center mb-6">

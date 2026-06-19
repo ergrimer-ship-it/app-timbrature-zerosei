@@ -96,7 +96,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, shifts, 
         <div className="space-y-5">
             {/* Blue header with overlapping white card */}
             <div className="relative">
-                <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-5 pt-12 pb-16 rounded-b-3xl -mx-4 lg:-mx-8">
+                <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-5 pt-5 pb-16 rounded-b-3xl -mx-4 lg:-mx-8">
                     <div className="flex items-center justify-between mb-1">
                         <div>
                             <p className="text-blue-200 text-sm">Bentornato,</p>
