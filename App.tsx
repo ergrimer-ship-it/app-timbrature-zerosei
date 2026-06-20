@@ -409,6 +409,11 @@ const App: React.FC = () => {
                         onBack={handleBackToAdmin}
                         onUpdateShift={(updatedShift) => handleUpdateShift(selectedUser!.id, updatedShift)}
                         onDeleteShift={(id) => handleDeleteShift(selectedUser!.id, id)}
+                        onRoleChange={(userId, role) => {
+                            setUsers(prev => prev.map(u =>
+                                u.id === userId ? { ...u, role: role ?? undefined } : u
+                            ));
+                        }}
                     />
                 );
             case 'globalShifts':

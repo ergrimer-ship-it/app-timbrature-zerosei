@@ -14,9 +14,10 @@ interface UserDetailScreenProps {
     onBack: () => void;
     onUpdateShift: (updatedShift: Shift) => void;
     onDeleteShift: (shiftId: string) => void;
+    onRoleChange?: (userId: string, role: UserRole | null) => void;
 }
 
-export const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ selectedUser, userShifts, assignedShifts, onBack, onUpdateShift, onDeleteShift }) => {
+export const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ selectedUser, userShifts, assignedShifts, onBack, onUpdateShift, onDeleteShift, onRoleChange }) => {
     const [activeTab, setActiveTab] = useState<'calendar' | 'shifts' | 'notes'>('calendar');
     const [password, setPassword] = useState<string | null>(null);
     const [loadingPassword, setLoadingPassword] = useState(false);
@@ -34,8 +35,10 @@ export const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ selectedUser
     const handleRoleChange = async (role: UserRole | '') => {
         setSavingRole(true);
         try {
-            await updateUserRole(selectedUser.id, role || null);
-            setCurrentRole(role as UserRole || undefined);
+            const newRole = (role as UserRole) || null;
+            await updateUserRole(selectedUser.id, newRole);
+            setCurrentRole(newRole ?? undefined);
+            onRoleChange?.(selectedUser.id, newRole);
         } finally {
             setSavingRole(false);
         }
