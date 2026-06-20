@@ -58,14 +58,20 @@ export const listenToAdminNotifications = (
             limit(50)
         );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === 'added') {
-                    const notification = change.doc.data() as NotificationData;
-                    callback(notification);
-                }
-            });
-        });
+        const unsubscribe = onSnapshot(
+            q,
+            (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === 'added') {
+                        callback(change.doc.data() as NotificationData);
+                    }
+                });
+            },
+            (error) => {
+                // Errore silenzioso — le notifiche real-time non sono critiche
+                console.warn('Notifications listener error (non-critical):', error.message);
+            }
+        );
 
         return unsubscribe;
     } catch (error) {

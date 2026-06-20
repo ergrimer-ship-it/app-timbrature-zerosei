@@ -18,7 +18,7 @@ import { LeaveSummaryScreen } from './components/LeaveSummaryScreen';
 import { login, register, subscribeAuth, logout } from './authService';
 import { getAllUsers, deleteUser, getShifts, addShift, deleteShift, setActiveShift as setActiveShiftDb, getActiveShift as getActiveShiftDb, clearActiveShift as clearActiveShiftDb, saveAssignedShifts, getAssignedShifts, onActiveShiftChange } from './services/dbService';
 import { requestNotificationPermission, setupForegroundMessageListener } from './services/notificationService';
-import { createNotification, listenToAdminNotifications } from './services/localNotificationService';
+import { createNotification } from './services/localNotificationService';
 import { scheduleShiftReminders, clearAllReminders } from './services/shiftReminderService';
 
 const App: React.FC = () => {
@@ -74,10 +74,9 @@ const App: React.FC = () => {
                 }
 
                 notifUnsubRef.current?.();
+                notifUnsubRef.current = null;
                 if (u.isAdmin) {
                     setViewMode('live');
-                    // Listener Firestore solo per aggiornamenti UI futuri (nessuna browser notification — ci pensa FCM)
-                    notifUnsubRef.current = listenToAdminNotifications(() => {});
                 } else {
                     setViewMode('dashboard');
                     // Auto-load shifts on session restore (no need to re-login)
