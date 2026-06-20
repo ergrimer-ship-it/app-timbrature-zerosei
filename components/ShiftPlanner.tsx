@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { User, AssignedShift, FutureLeave } from '../types';
+import { ROLE_COLORS } from '../types';
 import { ChevronLeftIcon, ChevronRightIcon, TrashIcon, SaveIcon } from './icons';
 import { getFutureLeaves } from '../services/dbService';
 
@@ -186,14 +187,20 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
                                         <div className={`w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-xs font-bold ${gradient ? `bg-gradient-to-br ${gradient}` : 'bg-slate-300'}`}>
                                             {selectedUser ? `${selectedUser.name.charAt(0)}${selectedUser.surname.charAt(0)}` : '?'}
                                         </div>
-                                        <select
-                                            value={shift.userId}
-                                            onChange={(e) => handleUpdateShift(shift.id, 'userId', e.target.value)}
-                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                        >
-                                            <option value="">Seleziona Utente</option>
-                                            {allUsers.map(u => <option key={u.id} value={u.id}>{u.name} {u.surname}</option>)}
-                                        </select>
+                                        <div className="flex-1 min-w-0">
+                                            <select
+                                                value={shift.userId}
+                                                onChange={(e) => handleUpdateShift(shift.id, 'userId', e.target.value)}
+                                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                            >
+                                                <option value="">Seleziona Utente</option>
+                                                {allUsers.map(u => <option key={u.id} value={u.id}>{u.name} {u.surname}{u.role ? ` · ${u.role}` : ''}</option>)}
+                                            </select>
+                                            {selectedUser?.role && (() => {
+                                                const c = ROLE_COLORS[selectedUser.role!];
+                                                return <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${c.bg} ${c.text} ${c.border}`}>{selectedUser.role}</span>;
+                                            })()}
+                                        </div>
                                         <input
                                             type="time"
                                             value={shift.startTime}

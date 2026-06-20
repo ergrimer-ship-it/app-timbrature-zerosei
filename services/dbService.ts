@@ -23,6 +23,17 @@ export const getUserPassword = async (userId: string): Promise<string | null> =>
     return null;
 };
 
+/** Update role for a user (admin only) */
+export const updateUserRole = async (userId: string, role: string | null): Promise<void> => {
+    const userRef = doc(db, 'users', userId);
+    if (role) {
+        await setDoc(userRef, { role }, { merge: true });
+    } else {
+        const { deleteField } = await import('firebase/firestore');
+        await setDoc(userRef, { role: deleteField() }, { merge: true });
+    }
+};
+
 /** Get all users */
 export const getAllUsers = async (): Promise<User[]> => {
     const snap = await getDocs(collection(db, 'users'));

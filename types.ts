@@ -1,14 +1,23 @@
 
+export type UserRole = 'Banchista' | 'Pizzaiolo' | 'Consegnatore';
+
+export const USER_ROLES: UserRole[] = ['Banchista', 'Pizzaiolo', 'Consegnatore'];
+
+export const ROLE_COLORS: Record<UserRole, { bg: string; text: string; border: string }> = {
+    Banchista:    { bg: 'bg-blue-100',   text: 'text-blue-700',   border: 'border-blue-300' },
+    Pizzaiolo:    { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-300' },
+    Consegnatore: { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300' },
+};
+
 export interface User {
   id: string;
   name: string; // First Name
   surname: string; // Last Name
   email: string;
   password?: string;
-  // fix: Added optional isAdmin property for admin user checks
   isAdmin?: boolean;
-  // FCM token for push notifications
   fcmToken?: string;
+  role?: UserRole;
 }
 
 export interface PublicUser {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { User } from '../types';
+import { ROLE_COLORS } from '../types';
 import { UsersIcon, TrashIcon, EyeIcon, EyeOffIcon, DownloadIcon } from './icons';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import { exportAllData } from '../services/dbService';
@@ -101,11 +102,15 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ allU
                                     {user.name.charAt(0)}{user.surname.charAt(0)}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                         <span className="font-semibold text-slate-800 text-sm">{user.name} {user.surname}</span>
                                         {user.isAdmin && (
                                             <span className="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">ADMIN</span>
                                         )}
+                                        {user.role && (() => {
+                                            const c = ROLE_COLORS[user.role];
+                                            return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${c.bg} ${c.text} ${c.border}`}>{user.role}</span>;
+                                        })()}
                                     </div>
                                     <div className="flex items-center gap-2 mt-0.5">
                                         <span className="text-xs text-slate-400 font-mono">

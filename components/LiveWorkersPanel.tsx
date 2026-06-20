@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import type { User, Shift, AssignedShift, PublicUser } from '../types';
+import type { User, Shift, AssignedShift, UserRole } from '../types';
+import { ROLE_COLORS } from '../types';
 import { ClockIcon } from './icons';
 import { formatTime } from '../utils/date';
-import { onActiveShifts, getShifts, getPublicUsers, addShift } from '../services/dbService';
+import { onActiveShifts, getShifts, getAllUsers, addShift } from '../services/dbService';
 import { WeeklyCalendar } from './WeeklyCalendar';
 import { EditShiftModal } from './EditShiftModal';
 
@@ -17,11 +18,11 @@ export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = ({ assignedShif
     const [currentTime, setCurrentTime] = useState(new Date());
 
     // Panoramica turni state
-    const [users, setUsers] = useState<PublicUser[]>([]);
+    const [users, setUsers] = useState<User[]>([]);
     const [allShifts, setAllShifts] = useState<(Shift & { userId: string })[]>([]);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
-    const [selectedUserForEdit, setSelectedUserForEdit] = useState<PublicUser | null>(null);
+    const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null);
 
     useEffect(() => {
         const unsub = onActiveShifts(workers => {
@@ -39,7 +40,7 @@ export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = ({ assignedShif
 
     useEffect(() => {
         const load = async () => {
-            const us = await getPublicUsers();
+            const us = await getAllUsers();
             setUsers(us);
             const arrays = await Promise.all(us.map(async u => {
                 const s = await getShifts(u.id);
@@ -66,7 +67,7 @@ export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = ({ assignedShif
         return shift.type ? labels[shift.type] ?? null : null;
     };
 
-    const handleShiftClick = (user: PublicUser, actualShift?: Shift, assignedShift?: AssignedShift) => {
+    const handleShiftClick = (user: User, actualShift?: Shift, assignedShift?: AssignedShift) => {
         setSelectedUserForEdit(user);
         if (actualShift) {
             setSelectedShift(actualShift);
@@ -137,7 +138,13 @@ export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = ({ assignedShif
                                         {user.name.charAt(0)}{user.surname.charAt(0)}
                                     </div>
                                     <div>
-                                        <p className="font-bold text-slate-800">{user.name} {user.surname}</p>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <p className="font-bold text-slate-800">{user.name} {user.surname}</p>
+                                            {user.role && (() => {
+                                                const c = ROLE_COLORS[user.role as UserRole];
+                                                return c ? <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${c.bg} ${c.text} ${c.border}`}>{user.role}</span> : null;
+                                            })()}
+                                        </div>
                                         <div className="flex items-center gap-1 mt-0.5">
                                             <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                                             <span className="text-emerald-600 text-xs font-semibold">In Servizio</span>

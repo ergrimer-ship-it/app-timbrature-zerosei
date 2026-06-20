@@ -3,7 +3,8 @@
     "allow": [
       "PowerShell(Get-ChildItem \"c:\\\\Users\\\\Andrea\\\\Desktop\\\\applicazioni\\\\app-timbrature-dipendenti-zerosei\" | Where-Object { $_.Name -ne \"node_modules\" } | Format-Table Name, LastWriteTime -AutoSize)",
       "PowerShell(Get-ChildItem \"c:\\\\Users\\\\Andrea\\\\Desktop\\\\applicazioni\\\\app-timbrature-dipendenti-zerosei\\\\functions\" | Where-Object { $_.Name -ne \"node_modules\" } | Format-Table Name -AutoSize)",
-      "Bash(start \"c:\\\\Users\\\\Andrea\\\\Desktop\\\\applicazioni\\\\app-timbrature-dipendenti-zerosei\\\\mockup-redesign.html\")"
+      "Bash(start \"c:\\\\Users\\\\Andrea\\\\Desktop\\\\applicazioni\\\\app-timbrature-dipendenti-zerosei\\\\mockup-redesign.html\")",
+      "Bash(start \"c:\\\\Users\\\\Andrea\\\\Desktop\\\\applicazioni\\\\app-timbrature-dipendenti-zerosei\\\\mockup-panoramica.html\")"
     ]
   }
 }
