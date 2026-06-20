@@ -1,13 +1,10 @@
 import type { AssignedShift } from '../types';
 
 let scheduledTimers: ReturnType<typeof setTimeout>[] = [];
-let lateCheckInterval: ReturnType<typeof setInterval> | null = null;
-let lateCheckStartTimer: ReturnType<typeof setTimeout> | null = null;
 
 const fireNotification = (title: string, body: string) => {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     if ('serviceWorker' in navigator) {
-        // Use registration.showNotification() — works with any active SW (Workbox or FCM)
         navigator.serviceWorker.ready.then(reg => {
             reg.showNotification(title, { body, icon: '/icon-192.png', badge: '/icon-192.png' });
         });
@@ -19,8 +16,6 @@ const fireNotification = (title: string, body: string) => {
 export const clearAllReminders = () => {
     scheduledTimers.forEach(id => clearTimeout(id));
     scheduledTimers = [];
-    if (lateCheckInterval !== null) { clearInterval(lateCheckInterval); lateCheckInterval = null; }
-    if (lateCheckStartTimer !== null) { clearTimeout(lateCheckStartTimer); lateCheckStartTimer = null; }
 };
 
 export const scheduleShiftReminders = (
@@ -32,52 +27,44 @@ export const scheduleShiftReminders = (
     const now = new Date();
     const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Rome' }).format(now);
 
-    // Notifica 10 min prima di ogni turno assegnato oggi
     for (const shift of assignedShifts) {
         if (shift.date !== today) continue;
 
-        const [h, m] = shift.startTime.split(':').map(Number);
-        if (h < 16) continue;
+        const [sh, sm] = shift.startTime.split(':').map(Number);
 
+        // ── Promemoria ENTRATA: 10 min prima dell'inizio ──
         const shiftStart = new Date(now);
-        shiftStart.setHours(h, m, 0, 0);
+        shiftStart.setHours(sh, sm, 0, 0);
+        const delayStart = shiftStart.getTime() - 10 * 60 * 1000 - now.getTime();
 
-        const delay = shiftStart.getTime() - 10 * 60 * 1000 - now.getTime();
-        if (delay <= 0) continue;
+        if (delayStart > 0) {
+            const id = setTimeout(() => {
+                if (getHasActiveShift()) return; // già timbrato
+                fireNotification(
+                    '⏰ Promemoria Entrata',
+                    `Tra 10 minuti inizia il tuo turno (${shift.startTime}). Ricordati di timbrare l'entrata!`
+                );
+            }, delayStart);
+            scheduledTimers.push(id);
+        }
 
-        const id = setTimeout(() => {
-            if (getHasActiveShift()) return;
-            fireNotification(
-                'Promemoria Timbratura',
-                `Tra 10 minuti inizia il tuo turno (${shift.startTime}). Ricordati di timbrare l'entrata!`
-            );
-        }, delay);
-        scheduledTimers.push(id);
-    }
+        // ── Promemoria USCITA: 10 min DOPO la fine ──
+        if (shift.endTime) {
+            const [eh, em] = shift.endTime.split(':').map(Number);
+            const shiftEnd = new Date(now);
+            shiftEnd.setHours(eh, em, 0, 0);
+            const delayEnd = shiftEnd.getTime() + 10 * 60 * 1000 - now.getTime();
 
-    // Dalle 21:45, ogni 15 min se non timbrata uscita
-    const target = new Date(now);
-    target.setHours(21, 45, 0, 0);
-    const delayTo2145 = target.getTime() - now.getTime();
-
-    const startLateCheck = () => {
-        const check = () => {
-            if (!getHasActiveShift()) {
-                if (lateCheckInterval !== null) { clearInterval(lateCheckInterval); lateCheckInterval = null; }
-                return;
+            if (delayEnd > 0) {
+                const id = setTimeout(() => {
+                    if (!getHasActiveShift()) return; // già timbrato l'uscita
+                    fireNotification(
+                        '⏰ Promemoria Uscita',
+                        `Sono le ${shift.endTime} e hai ancora il turno attivo. Ricordati di timbrare l'uscita!`
+                    );
+                }, delayEnd);
+                scheduledTimers.push(id);
             }
-            fireNotification(
-                'Uscita non timbrata',
-                "Non hai ancora timbrato l'uscita. Ricordati di farlo!"
-            );
-        };
-        check();
-        lateCheckInterval = setInterval(check, 15 * 60 * 1000);
-    };
-
-    if (delayTo2145 > 0) {
-        lateCheckStartTimer = setTimeout(startLateCheck, delayTo2145);
-    } else {
-        startLateCheck();
+        }
     }
 };

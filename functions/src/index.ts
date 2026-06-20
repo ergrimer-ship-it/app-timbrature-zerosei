@@ -11,14 +11,14 @@ const tasksClient = new CloudTasksClient();
 
 const LOCATION = 'us-central1';
 const QUEUE = 'shift-reminders';
-const MAX_SCHEDULE_HOURS = 29 * 24; // Cloud Tasks max è 30 giorni, usiamo 29
+const MAX_SCHEDULE_HOURS = 29 * 24;
 
 interface AssignedShift {
     id: string;
-    date: string;      // YYYY-MM-DD
+    date: string;
     userId: string;
-    startTime: string; // HH:mm
-    endTime?: string;  // HH:mm
+    startTime: string;
+    endTime?: string;
 }
 
 function todayItaly(now: Date): string {
@@ -37,62 +37,30 @@ function romeLocalToUtc(dateStr: string, timeStr: string): Date {
     return new Date(2 * guessUtc.getTime() - romeAsUtc.getTime());
 }
 
-/** Tokens di un documento utente — supporta sia il vecchio campo singolo che il nuovo array */
-function getTokensFromDoc(data: FirebaseFirestore.DocumentData): string[] {
-    const arr: string[] = data.fcmTokens ?? [];
-    if (arr.length === 0 && data.fcmToken) return [data.fcmToken];
-    return arr;
-}
-
-/** Invia push a tutti gli admin; rimuove token scaduti */
-async function sendPushToAllAdmins(title: string, body: string): Promise<void> {
-    const snapshot = await db.collection('users').where('isAdmin', '==', true).get();
-    await Promise.all(snapshot.docs.map(async (userDoc) => {
-        const tokens = getTokensFromDoc(userDoc.data());
-        const stale: string[] = [];
-        await Promise.all(tokens.map(async (token) => {
-            try {
-                await messaging.send({ token, notification: { title, body } });
-            } catch (err: any) {
-                if (err.code === 'messaging/registration-token-not-registered' ||
-                    err.code === 'messaging/invalid-registration-token') {
-                    stale.push(token);
-                } else {
-                    console.warn('FCM admin push failed:', err.message);
-                }
-            }
-        }));
-        if (stale.length > 0) {
-            await userDoc.ref.update({
-                fcmTokens: admin.firestore.FieldValue.arrayRemove(...stale),
-            });
-        }
-    }));
-}
-
-/** Invia push a un utente specifico; rimuove token scaduti */
+/** Invia push a un utente specifico (token singolo) */
 async function sendPush(userId: string, title: string, body: string): Promise<void> {
     const userSnap = await db.doc(`users/${userId}`).get();
     if (!userSnap.exists) return;
-    const tokens = getTokensFromDoc(userSnap.data()!);
-    const stale: string[] = [];
-    await Promise.all(tokens.map(async (token) => {
-        try {
-            await messaging.send({ token, notification: { title, body } });
-        } catch (err: any) {
-            if (err.code === 'messaging/registration-token-not-registered' ||
-                err.code === 'messaging/invalid-registration-token') {
-                stale.push(token);
-            } else {
-                console.warn(`FCM send failed for user ${userId}:`, err.message);
-            }
-        }
-    }));
-    if (stale.length > 0) {
-        await userSnap.ref.update({
-            fcmTokens: admin.firestore.FieldValue.arrayRemove(...stale),
-        });
+    const token: string | undefined = userSnap.data()?.fcmToken;
+    if (!token) return;
+    try {
+        await messaging.send({ token, notification: { title, body } });
+    } catch (err: any) {
+        console.warn(`FCM send failed for user ${userId}:`, err.message);
     }
+}
+
+/** Invia push a tutti gli admin (token singolo per utente) */
+async function sendPushToAllAdmins(title: string, body: string): Promise<void> {
+    const snapshot = await db.collection('users').where('isAdmin', '==', true).get();
+    const sends = snapshot.docs
+        .map(d => d.data()?.fcmToken as string | undefined)
+        .filter((token): token is string => !!token)
+        .map(token =>
+            messaging.send({ token, notification: { title, body } })
+                .catch((err: any) => console.warn('FCM admin push failed:', err.message))
+        );
+    await Promise.all(sends);
 }
 
 async function deleteTask(project: string, taskId: string): Promise<void> {
@@ -127,28 +95,23 @@ async function createTask(
             },
         });
     } catch (err: any) {
-        // ALREADY_EXISTS = task con stesso nome esiste ancora (deduplication 1h), ignora
-        if (err.code !== 6) throw err;
+        if (err.code !== 6) throw err; // ignora ALREADY_EXISTS
     }
 }
 
-// Pianifica task per un singolo turno (se entro 29 giorni)
+/** Pianifica i promemoria per un singolo turno */
 async function scheduleShiftTasks(project: string, shift: AssignedShift, now: Date): Promise<void> {
-    const [h] = shift.startTime.split(':').map(Number);
-    if (h < 16) return;
-
     const maxFuture = new Date(now.getTime() + MAX_SCHEDULE_HOURS * 60 * 60 * 1000);
     const safeId = shift.id.replace(/[^a-zA-Z0-9_-]/g, '-');
 
-    // Task promemoria inizio (startTime - 10 min)
+    // ── Promemoria ENTRATA: 10 min prima dell'inizio ──
     const startReminderTime = new Date(
         romeLocalToUtc(shift.date, shift.startTime).getTime() - 10 * 60 * 1000
     );
     if (startReminderTime > now && startReminderTime <= maxFuture) {
-        // Nome include i minuti di schedule → unico per orario, evita conflitti su cambio orario
         const startMin = Math.floor(startReminderTime.getTime() / 60000);
         const startTaskId = `${safeId}-start-${startMin}`;
-        await deleteTask(project, `${safeId}-start`); // pulizia vecchio formato
+        await deleteTask(project, `${safeId}-start`);
         await createTask(project, startTaskId, startReminderTime, {
             userId: shift.userId,
             type: 'start',
@@ -156,14 +119,16 @@ async function scheduleShiftTasks(project: string, shift: AssignedShift, now: Da
         });
     }
 
-    // Task promemoria fine turno
+    // ── Promemoria USCITA: 10 min DOPO la fine ──
     if (shift.endTime) {
-        const endUtc = romeLocalToUtc(shift.date, shift.endTime);
-        if (endUtc > now && endUtc <= maxFuture) {
-            const endMin = Math.floor(endUtc.getTime() / 60000);
+        const endReminderTime = new Date(
+            romeLocalToUtc(shift.date, shift.endTime).getTime() + 10 * 60 * 1000
+        );
+        if (endReminderTime > now && endReminderTime <= maxFuture) {
+            const endMin = Math.floor(endReminderTime.getTime() / 60000);
             const endTaskId = `${safeId}-end-${endMin}`;
-            await deleteTask(project, `${safeId}-end`); // pulizia vecchio formato
-            await createTask(project, endTaskId, endUtc, {
+            await deleteTask(project, `${safeId}-end`);
+            await createTask(project, endTaskId, endReminderTime, {
                 userId: shift.userId,
                 type: 'end',
                 endTime: shift.endTime,
@@ -172,7 +137,7 @@ async function scheduleShiftTasks(project: string, shift: AssignedShift, now: Da
     }
 }
 
-// Trigger: quando l'admin salva i turni, pianifica i task entro 29 giorni
+// Trigger: quando l'admin salva i turni, pianifica i task
 export const onAssignedShiftsUpdated = onDocumentWritten(
     { document: 'assignedShifts/all', region: LOCATION },
     async (event) => {
@@ -180,7 +145,6 @@ export const onAssignedShiftsUpdated = onDocumentWritten(
         const now = new Date();
         const todayStr = todayItaly(now);
         const shifts: AssignedShift[] = event.data?.after?.data()?.shifts ?? [];
-
         for (const shift of shifts) {
             if (shift.date < todayStr) continue;
             await scheduleShiftTasks(project, shift, now);
@@ -188,7 +152,7 @@ export const onAssignedShiftsUpdated = onDocumentWritten(
     }
 );
 
-// Ogni notte a mezzanotte: pianifica i turni che entrano nella finestra dei 29 giorni
+// Ogni notte a mezzanotte: pianifica i turni che entrano nella finestra
 export const scheduleDailyShiftTasks = onSchedule(
     { schedule: '0 0 * * *', timeZone: 'Europe/Rome', region: LOCATION },
     async () => {
@@ -197,28 +161,10 @@ export const scheduleDailyShiftTasks = onSchedule(
         const todayStr = todayItaly(now);
         const snap = await db.doc('assignedShifts/all').get();
         if (!snap.exists) return;
-
         const shifts: AssignedShift[] = snap.data()?.shifts ?? [];
         for (const shift of shifts) {
             if (shift.date < todayStr) continue;
             await scheduleShiftTasks(project, shift, now);
-        }
-    }
-);
-
-// Fallback: ogni 15 min dalle 21:45 per chi non ha timbrato l'uscita
-export const checkLateClockout = onSchedule(
-    { schedule: '45,0,15,30 21-23 * * *', timeZone: 'Europe/Rome', region: LOCATION },
-    async () => {
-        const activeSnap = await db.collection('activeShifts').get();
-        const project = process.env.GCLOUD_PROJECT!;
-        void project;
-        for (const doc of activeSnap.docs) {
-            await sendPush(
-                doc.id,
-                'Uscita non timbrata',
-                "Non hai ancora timbrato l'uscita. Ricordati di farlo!"
-            );
         }
     }
 );
@@ -239,18 +185,31 @@ export const handleShiftReminder = onRequest(
         if (type === 'start' && !alreadyClockedIn) {
             await sendPush(
                 userId,
-                'Promemoria Timbratura',
-                `Tra 10 minuti inizia il tuo turno (${startTime}). Ricordati di timbrare!`
+                '⏰ Promemoria Entrata',
+                `Tra 10 minuti inizia il tuo turno (${startTime}). Ricordati di timbrare l'entrata!`
             );
         } else if (type === 'end' && alreadyClockedIn) {
             await sendPush(
                 userId,
-                'Uscita non timbrata',
-                `Sono le ${endTime}, ricordati di timbrare l'uscita!`
+                '⏰ Promemoria Uscita',
+                `Sono le ${endTime} e hai ancora il turno attivo. Ricordati di timbrare l'uscita!`
             );
         }
 
         res.sendStatus(200);
+    }
+);
+
+// Notifica push agli admin quando un dipendente timbra entrata o uscita
+export const onNewNotification = onDocumentCreated(
+    { document: 'notifications/{notifId}', region: LOCATION },
+    async (event) => {
+        const data = event.data?.data() as { type: string; message: string } | undefined;
+        if (!data) return;
+        const { type, message } = data;
+        if (type !== 'clock_in' && type !== 'clock_out') return;
+        const title = type === 'clock_in' ? '🟢 Timbratura Entrata' : '🔴 Timbratura Uscita';
+        await sendPushToAllAdmins(title, message);
     }
 );
 
@@ -274,26 +233,12 @@ export const onLeaveRequestUpdated = onDocumentUpdated(
         const before = event.data?.before?.data() as { status?: string; userId?: string } | undefined;
         const after  = event.data?.after?.data()  as { status?: string; userId?: string } | undefined;
         if (!before || !after) return;
-        if (before.status === after.status) return; // nessun cambio stato
+        if (before.status === after.status) return;
         if (!after.userId) return;
-
         if (after.status === 'approved') {
             await sendPush(after.userId, '✅ Permesso Approvato', 'La tua richiesta di permesso è stata approvata!');
         } else if (after.status === 'rejected') {
             await sendPush(after.userId, '❌ Permesso Rifiutato', 'La tua richiesta di permesso è stata rifiutata.');
         }
-    }
-);
-
-// Notifica push agli admin quando un dipendente timbra entrata o uscita
-export const onNewNotification = onDocumentCreated(
-    { document: 'notifications/{notifId}', region: LOCATION },
-    async (event) => {
-        const data = event.data?.data();
-        if (!data) return;
-        const { type, message } = data as { type: string; message: string };
-        if (type !== 'clock_in' && type !== 'clock_out') return;
-        const title = type === 'clock_in' ? 'Timbratura Entrata' : 'Timbratura Uscita';
-        await sendPushToAllAdmins(title, message);
     }
 );

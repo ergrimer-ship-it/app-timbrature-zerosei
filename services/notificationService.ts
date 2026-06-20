@@ -47,16 +47,12 @@ export const requestNotificationPermission = async (userId: string): Promise<str
 };
 
 /**
- * Save FCM token to Firestore (array — supporta più dispositivi per utente)
+ * Save FCM token to Firestore (token singolo — sovrascrive il precedente)
  */
 const saveFCMToken = async (userId: string, token: string): Promise<void> => {
     try {
         const userRef = doc(db, 'users', userId);
-        const snap = await getDoc(userRef);
-        const existing: string[] = snap.data()?.fcmTokens ?? (snap.data()?.fcmToken ? [snap.data()!.fcmToken] : []);
-        if (!existing.includes(token)) {
-            await setDoc(userRef, { fcmTokens: [...existing, token] }, { merge: true });
-        }
+        await setDoc(userRef, { fcmToken: token }, { merge: true });
         console.log('FCM token saved to Firestore');
     } catch (error) {
         console.error('Error saving FCM token:', error);
