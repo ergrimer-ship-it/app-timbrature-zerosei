@@ -87,7 +87,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                     const dateKey = toDateKey(date);
 
                     const entries = users
-                        .filter(u => !u.isAdmin)
+                        .filter(u => !(u as User).isAdmin)
                         .map(user => {
                             const actual = shifts.find(s => {
                                 if (s.userId !== user.id) return false;
@@ -216,7 +216,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                         shifts.some(s => s.userId === u.id && new Date(s.startTime).toDateString() === date.toDateString()) ||
                         assignedShifts.some(s => s.userId === u.id && s.date === dateKey)
                     );
-                }) && (
+                }) && users.length > 0 && (
                     <div className="text-center py-10 text-slate-400">
                         <p className="text-4xl mb-2">📅</p>
                         <p className="text-sm">Nessun turno programmato questa settimana</p>

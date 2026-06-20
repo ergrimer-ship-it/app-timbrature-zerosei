@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { WeeklyCalendar } from './WeeklyCalendar';
 import { EditShiftModal } from './EditShiftModal';
-import { getShifts, addShift, getAllUsers } from '../services/dbService';
+import { getShifts, addShift, getPublicUsers } from '../services/dbService';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
 import type { Shift, AssignedShift, User } from '../types';
 
@@ -28,12 +28,18 @@ export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assigned
 
     useEffect(() => {
         const load = async () => {
-            const us = await getAllUsers();
-            setUsers(us);
+            // getPublicUsers è accessibile a tutti gli utenti autenticati
+            // (getAllUsers richiede permessi admin e fallirebbe per i dipendenti)
+            const us = await getPublicUsers();
+            setUsers(us as unknown as User[]);
             const arrays = await Promise.all(
-                us.filter(u => !u.isAdmin).map(async u => {
-                    const s = await getShifts(u.id);
-                    return s.map(sh => ({ ...sh, userId: u.id }));
+                us.map(async u => {
+                    try {
+                        const s = await getShifts(u.id);
+                        return s.map(sh => ({ ...sh, userId: u.id }));
+                    } catch {
+                        return [];
+                    }
                 })
             );
             setAllShifts(arrays.flat());
