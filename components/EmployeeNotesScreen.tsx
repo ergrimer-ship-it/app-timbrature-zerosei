@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import type { User, SalaryAdvance, FutureLeave, LeaveRequest, Shift, PublicUser, ShiftSwapRequest } from '../types';
-import { getSalaryAdvances, addSalaryAdvance, deleteSalaryAdvance, getFutureLeaves, addFutureLeave, deleteFutureLeave, addLeaveRequest, getUserLeaveRequests, getShifts, getPublicUsers, addShiftSwapRequest, getUserShiftSwapRequests } from '../services/dbService';
+import React, { useState, useEffect, useMemo } from 'react';
+import type { User, SalaryAdvance, FutureLeave, LeaveRequest, AssignedShift, PublicUser, ShiftSwapRequest } from '../types';
+import { getSalaryAdvances, addSalaryAdvance, deleteSalaryAdvance, getFutureLeaves, addFutureLeave, deleteFutureLeave, addLeaveRequest, getUserLeaveRequests, getAssignedShifts, getPublicUsers, addShiftSwapRequest, getUserShiftSwapRequests } from '../services/dbService';
 
 interface EmployeeNotesScreenProps {
     selectedUser: User;
@@ -31,43 +31,55 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
     // Tab richieste (solo dipendente)
     const [activeRequestTab, setActiveRequestTab] = useState<'permesso' | 'turno'>('permesso');
 
-    // Dipendente: richiesta cambio turno
-    const [myShifts, setMyShifts] = useState<Shift[]>([]);
+    // Dipendente: richiesta cambio turno (i turni futuri sono turni pianificati/AssignedShift,
+    // non turni reali/Shift che esistono solo dopo la timbratura)
+    const [allAssignedShifts, setAllAssignedShifts] = useState<AssignedShift[]>([]);
     const [colleagues, setColleagues] = useState<PublicUser[]>([]);
     const [swapRequests, setSwapRequests] = useState<ShiftSwapRequest[]>([]);
     const [swapMyShiftId, setSwapMyShiftId] = useState('');
     const [swapColleagueId, setSwapColleagueId] = useState('');
-    const [colleagueShifts, setColleagueShifts] = useState<Shift[]>([]);
-    const [loadingColleagueShifts, setLoadingColleagueShifts] = useState(false);
     const [swapColleagueShiftId, setSwapColleagueShiftId] = useState('');
     const [swapSending, setSwapSending] = useState(false);
     const [swapSuccess, setSwapSuccess] = useState(false);
 
     useEffect(() => { loadData(); }, [selectedUser.id]);
 
-    useEffect(() => {
-        if (!swapColleagueId) { setColleagueShifts([]); return; }
-        setLoadingColleagueShifts(true);
-        getShifts(swapColleagueId)
-            .then(shifts => setColleagueShifts(shifts.filter(s => new Date(s.startTime) > new Date())))
-            .finally(() => setLoadingColleagueShifts(false));
-    }, [swapColleagueId]);
+    const todayStr = useMemo(() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }, []);
+
+    const myShifts = useMemo(
+        () => allAssignedShifts
+            .filter(s => s.userId === selectedUser.id && s.date >= todayStr)
+            .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime)),
+        [allAssignedShifts, selectedUser.id, todayStr]
+    );
+
+    const colleagueShifts = useMemo(
+        () => swapColleagueId
+            ? allAssignedShifts
+                .filter(s => s.userId === swapColleagueId && s.date >= todayStr)
+                .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
+            : [],
+        [allAssignedShifts, swapColleagueId, todayStr]
+    );
 
     const loadData = async () => {
         setLoading(true);
         try {
-            const [adv, lv, reqs, shifts, users, swapReqs] = await Promise.all([
+            const [adv, lv, reqs, assignedShifts, users, swapReqs] = await Promise.all([
                 getSalaryAdvances(selectedUser.id),
                 getFutureLeaves(selectedUser.id),
                 !isAdmin ? getUserLeaveRequests(selectedUser.id) : Promise.resolve([]),
-                !isAdmin ? getShifts(selectedUser.id) : Promise.resolve([]),
+                !isAdmin ? getAssignedShifts() : Promise.resolve([]),
                 !isAdmin ? getPublicUsers() : Promise.resolve([]),
                 !isAdmin ? getUserShiftSwapRequests(selectedUser.id) : Promise.resolve([]),
             ]);
             setAdvances(adv);
             setLeaves(lv);
             setLeaveRequests(reqs);
-            setMyShifts(shifts.filter(s => new Date(s.startTime) > new Date()));
+            setAllAssignedShifts(assignedShifts);
             setColleagues(users.filter(u => u.id !== selectedUser.id));
             setSwapRequests(swapReqs);
         } finally { setLoading(false); }
@@ -153,17 +165,21 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
                 requesterId: selectedUser.id,
                 requesterName: `${selectedUser.name} ${selectedUser.surname}`,
                 requesterShiftId: myShift.id,
-                requesterShiftDate: myShift.startTime,
+                requesterShiftDate: myShift.date,
+                requesterShiftStart: myShift.startTime,
+                ...(myShift.endTime ? { requesterShiftEnd: myShift.endTime } : {}),
                 targetUserId: colleague.id,
                 targetUserName: `${colleague.name} ${colleague.surname}`,
                 targetShiftId: colleagueShift.id,
-                targetShiftDate: colleagueShift.startTime,
+                targetShiftDate: colleagueShift.date,
+                targetShiftStart: colleagueShift.startTime,
+                ...(colleagueShift.endTime ? { targetShiftEnd: colleagueShift.endTime } : {}),
                 status: 'pending',
                 requestedAt: new Date().toISOString(),
             };
             await addShiftSwapRequest(req);
             setSwapRequests(prev => [req, ...prev]);
-            setSwapMyShiftId(''); setSwapColleagueId(''); setSwapColleagueShiftId(''); setColleagueShifts([]);
+            setSwapMyShiftId(''); setSwapColleagueId(''); setSwapColleagueShiftId('');
             setSwapSuccess(true);
             setTimeout(() => setSwapSuccess(false), 3000);
         } catch {
@@ -173,7 +189,10 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
 
     const fmtCurrency = (n: number) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n);
     const fmtDate = (s: string) => new Date(s).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const fmtDateTime = (s: string) => new Date(s).toLocaleString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const fmtAssignedShift = (date: string, start: string, end?: string) => {
+        const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit' });
+        return `${dateLabel} ${start}${end ? `–${end}` : ''}`;
+    };
 
     if (loading) return <div className="text-center py-12 text-slate-400 animate-pulse">Caricamento...</div>;
 
@@ -395,7 +414,7 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
                                 className="glass-input w-full px-3 py-2 rounded-xl text-sm" required>
                                 <option value="">Seleziona un turno...</option>
                                 {myShifts.map(s => (
-                                    <option key={s.id} value={s.id}>{fmtDateTime(s.startTime)}</option>
+                                    <option key={s.id} value={s.id}>{fmtAssignedShift(s.date, s.startTime, s.endTime)}</option>
                                 ))}
                             </select>
                             {myShifts.length === 0 && (
@@ -417,14 +436,13 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
                             <div>
                                 <label className="text-xs text-slate-500 block mb-1">Turno del collega da ricevere *</label>
                                 <select value={swapColleagueShiftId} onChange={e => setSwapColleagueShiftId(e.target.value)}
-                                    className="glass-input w-full px-3 py-2 rounded-xl text-sm" required
-                                    disabled={loadingColleagueShifts}>
-                                    <option value="">{loadingColleagueShifts ? 'Caricamento...' : 'Seleziona un turno...'}</option>
+                                    className="glass-input w-full px-3 py-2 rounded-xl text-sm" required>
+                                    <option value="">Seleziona un turno...</option>
                                     {colleagueShifts.map(s => (
-                                        <option key={s.id} value={s.id}>{fmtDateTime(s.startTime)}</option>
+                                        <option key={s.id} value={s.id}>{fmtAssignedShift(s.date, s.startTime, s.endTime)}</option>
                                     ))}
                                 </select>
-                                {!loadingColleagueShifts && colleagueShifts.length === 0 && (
+                                {colleagueShifts.length === 0 && (
                                     <p className="text-xs text-slate-400 mt-1">Il collega non ha turni futuri.</p>
                                 )}
                             </div>
@@ -454,14 +472,18 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
                                     req.status === 'rejected' ? '❌ Rifiutato' : '⏳ In attesa';
                                 const isRequester = req.requesterId === selectedUser.id;
                                 const otherName = isRequester ? req.targetUserName : req.requesterName;
-                                const myDate = isRequester ? req.requesterShiftDate : req.targetShiftDate;
-                                const otherDate = isRequester ? req.targetShiftDate : req.requesterShiftDate;
+                                const mine = isRequester
+                                    ? fmtAssignedShift(req.requesterShiftDate, req.requesterShiftStart, req.requesterShiftEnd)
+                                    : fmtAssignedShift(req.targetShiftDate, req.targetShiftStart, req.targetShiftEnd);
+                                const other = isRequester
+                                    ? fmtAssignedShift(req.targetShiftDate, req.targetShiftStart, req.targetShiftEnd)
+                                    : fmtAssignedShift(req.requesterShiftDate, req.requesterShiftStart, req.requesterShiftEnd);
                                 return (
                                     <div key={req.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
                                         <div className="flex items-start justify-between gap-2">
                                             <div>
                                                 <p className="font-semibold text-slate-700 text-sm">
-                                                    {fmtDateTime(myDate)} ↔ {fmtDateTime(otherDate)}
+                                                    {mine} ↔ {other}
                                                 </p>
                                                 <p className="text-xs text-slate-500 mt-0.5">
                                                     {isRequester ? `Con ${otherName}` : `${otherName} ti propone lo scambio`}

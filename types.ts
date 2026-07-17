@@ -87,16 +87,21 @@ export interface LeaveRequest {
 }
 
 // Richiesta di scambio turno tra due dipendenti (inviata dal richiedente, approvata dall'admin)
+// Fa riferimento a turni pianificati (AssignedShift), non a turni reali/timbrati
 export interface ShiftSwapRequest {
   id: string;
   requesterId: string;
   requesterName: string;
-  requesterShiftId: string;
-  requesterShiftDate: string; // snapshot ISO dello startTime del turno, per display
+  requesterShiftId: string; // AssignedShift.id
+  requesterShiftDate: string; // YYYY-MM-DD, snapshot per display
+  requesterShiftStart: string; // HH:mm, snapshot per display
+  requesterShiftEnd?: string; // HH:mm, snapshot per display
   targetUserId: string;
   targetUserName: string;
-  targetShiftId: string;
-  targetShiftDate: string; // snapshot ISO dello startTime del turno, per display
+  targetShiftId: string; // AssignedShift.id
+  targetShiftDate: string; // YYYY-MM-DD, snapshot per display
+  targetShiftStart: string; // HH:mm, snapshot per display
+  targetShiftEnd?: string; // HH:mm, snapshot per display
   status: 'pending' | 'approved' | 'rejected';
   requestedAt: string; // ISO string
   reviewedAt?: string; // ISO string

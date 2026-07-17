@@ -417,7 +417,7 @@ const App: React.FC = () => {
                     />
                 );
             case 'globalShifts':
-                return <GlobalShiftsScreen assignedShifts={assignedShifts} user={user} />;
+                return <GlobalShiftsScreen assignedShifts={assignedShifts} user={user} onShiftsSwapped={setAssignedShifts} />;
             case 'documents':
                 return <DocumentsScreen user={user} allUsers={users} />;
             case 'profile':

@@ -344,23 +344,22 @@ export const getUserShiftSwapRequests = async (userId: string): Promise<ShiftSwa
     return [...map.values()].sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
 };
 
-export const approveShiftSwap = async (request: ShiftSwapRequest): Promise<void> => {
-    const requesterShiftRef = doc(db, 'users', request.requesterId, 'shifts', request.requesterShiftId);
-    const targetShiftRef = doc(db, 'users', request.targetUserId, 'shifts', request.targetShiftId);
-    const [requesterSnap, targetSnap] = await Promise.all([getDoc(requesterShiftRef), getDoc(targetShiftRef)]);
-    if (!requesterSnap.exists() || !targetSnap.exists()) {
-        throw new Error('Uno dei due turni non esiste più (forse già scambiato).');
+// Scambia due AssignedShift (turni pianificati) tra due dipendenti e approva la richiesta.
+// Ritorna l'array aggiornato di AssignedShift per permettere al chiamante di aggiornare lo stato locale.
+export const approveShiftSwap = async (request: ShiftSwapRequest): Promise<AssignedShift[]> => {
+    const allAssigned = await getAssignedShifts();
+    const requesterIdx = allAssigned.findIndex(s => s.id === request.requesterShiftId);
+    const targetIdx = allAssigned.findIndex(s => s.id === request.targetShiftId);
+    if (requesterIdx === -1 || targetIdx === -1) {
+        throw new Error('Uno dei due turni non esiste più (forse già cambiato).');
     }
-    const requesterShift = requesterSnap.data() as Shift;
-    const targetShift = targetSnap.data() as Shift;
+    // Scambio reale: il turno pianificato cambia proprietario (userId), non solo orario.
+    const updatedAssigned = [...allAssigned];
+    updatedAssigned[requesterIdx] = { ...updatedAssigned[requesterIdx], userId: request.targetUserId };
+    updatedAssigned[targetIdx] = { ...updatedAssigned[targetIdx], userId: request.requesterId };
+    await saveAssignedShifts(updatedAssigned);
 
     const batch = writeBatch(db);
-    // Scambio reale: il turno cambia proprietario (non solo orario), perché le ore lavorate
-    // si calcolano in base a sotto quale utente vive il documento shift.
-    batch.delete(requesterShiftRef);
-    batch.delete(targetShiftRef);
-    batch.set(doc(db, 'users', request.targetUserId, 'shifts', request.requesterShiftId), requesterShift);
-    batch.set(doc(db, 'users', request.requesterId, 'shifts', request.targetShiftId), targetShift);
     batch.set(doc(db, 'shiftSwapRequests', request.id), {
         ...request,
         status: 'approved',
@@ -393,6 +392,7 @@ export const approveShiftSwap = async (request: ShiftSwapRequest): Promise<void>
     });
 
     await batch.commit();
+    return updatedAssigned;
 };
 
 export const rejectShiftSwap = async (request: ShiftSwapRequest): Promise<void> => {

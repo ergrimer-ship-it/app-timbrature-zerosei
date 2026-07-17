@@ -8,9 +8,10 @@ import type { Shift, AssignedShift, User, ShiftSwapRequest } from '../types';
 interface GlobalShiftsScreenProps {
     assignedShifts: AssignedShift[];
     user: User;
+    onShiftsSwapped?: (shifts: AssignedShift[]) => void;
 }
 
-export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assignedShifts, user }) => {
+export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assignedShifts, user, onShiftsSwapped }) => {
     const [users, setUsers] = useState<User[]>([]);
     const [allShifts, setAllShifts] = useState<(Shift & { userId: string })[]>([]);
 
@@ -59,20 +60,9 @@ export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assigned
     const handleApproveSwap = async (req: ShiftSwapRequest) => {
         setSwapActionId(req.id);
         try {
-            await approveShiftSwap(req);
+            const updatedAssigned = await approveShiftSwap(req);
             setSwapRequests(prev => prev.filter(r => r.id !== req.id));
-            setAllShifts(prev => {
-                const withoutSwapped = prev.filter(s =>
-                    !(s.userId === req.requesterId && s.id === req.requesterShiftId) &&
-                    !(s.userId === req.targetUserId && s.id === req.targetShiftId)
-                );
-                const requesterShift = prev.find(s => s.userId === req.requesterId && s.id === req.requesterShiftId);
-                const targetShift = prev.find(s => s.userId === req.targetUserId && s.id === req.targetShiftId);
-                const swapped: (Shift & { userId: string })[] = [];
-                if (requesterShift) swapped.push({ ...requesterShift, userId: req.targetUserId });
-                if (targetShift) swapped.push({ ...targetShift, userId: req.requesterId });
-                return [...withoutSwapped, ...swapped];
-            });
+            onShiftsSwapped?.(updatedAssigned);
         } catch (err: any) {
             alert(err?.message || 'Errore durante l\'approvazione dello scambio.');
         } finally {
@@ -90,7 +80,10 @@ export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assigned
         }
     };
 
-    const fmtSwapDate = (s: string) => new Date(s).toLocaleString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const fmtSwapShift = (date: string, start: string, end?: string) => {
+        const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit' });
+        return `${dateLabel} ${start}${end ? `–${end}` : ''}`;
+    };
 
     const weekDates = useMemo(() => {
         return Array.from({ length: 7 }, (_, i) => {
@@ -175,17 +168,17 @@ export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assigned
                     </h2>
                     <div className="space-y-2">
                         {swapRequests.map(req => {
-                            const requesterPast = new Date(req.requesterShiftDate) < new Date();
-                            const targetPast = new Date(req.targetShiftDate) < new Date();
+                            const requesterPast = new Date(`${req.requesterShiftDate}T${req.requesterShiftStart}`) < new Date();
+                            const targetPast = new Date(`${req.targetShiftDate}T${req.targetShiftStart}`) < new Date();
                             return (
                                 <div key={req.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap">
                                     <div>
                                         <p className="font-semibold text-slate-700 text-sm">
                                             {req.requesterName}{' '}
-                                            <span className={requesterPast ? 'text-red-500 line-through' : ''}>{fmtSwapDate(req.requesterShiftDate)}</span>
+                                            <span className={requesterPast ? 'text-red-500 line-through' : ''}>{fmtSwapShift(req.requesterShiftDate, req.requesterShiftStart, req.requesterShiftEnd)}</span>
                                             {' '}↔{' '}
                                             {req.targetUserName}{' '}
-                                            <span className={targetPast ? 'text-red-500 line-through' : ''}>{fmtSwapDate(req.targetShiftDate)}</span>
+                                            <span className={targetPast ? 'text-red-500 line-through' : ''}>{fmtSwapShift(req.targetShiftDate, req.targetShiftStart, req.targetShiftEnd)}</span>
                                         </p>
                                         {(requesterPast || targetPast) && (
                                             <p className="text-xs text-red-500 mt-0.5">⚠️ Uno dei due turni è già passato</p>
