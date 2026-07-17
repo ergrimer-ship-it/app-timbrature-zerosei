@@ -58,6 +58,12 @@ service cloud.firestore {
       allow write: if isAdmin() || isOwner(userId);
     }
 
+    // Admin Passwords - plaintext password backup, admin-only reveal feature
+    match /adminPasswords/{userId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin() || isOwner(userId);
+    }
+
     // Active Shifts - used for tracking who is currently working
     match /activeShifts/{userId} {
       allow read: if isOwner(userId) || isAdmin();

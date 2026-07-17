@@ -24,11 +24,16 @@ export const register = async (
     };
 
     await setDoc(doc(db, 'users', firebaseUser.uid), userProfile);
-    // Save password separately in admin-only collection
-    await setDoc(doc(db, 'adminPasswords', firebaseUser.uid), { password });
 
-    // Sync to publicUsers for safe access
+    // Sync to publicUsers for safe access — must succeed so other employees can see this user's shifts
     await syncPublicUser(userProfile);
+
+    // Save password separately in admin-only collection (non-critical: don't block registration if it fails)
+    try {
+        await setDoc(doc(db, 'adminPasswords', firebaseUser.uid), { password });
+    } catch (err) {
+        console.error('Failed to save adminPasswords:', err);
+    }
 
     return userProfile;
 };
