@@ -180,15 +180,19 @@ export const handleShiftReminder = onRequest(
             endTime?: string;
         };
 
-        const alreadyClockedIn = (await db.doc(`activeShifts/${userId}`).get()).exists;
-
-        if (type === 'start' && !alreadyClockedIn) {
+        if (type === 'start') {
             await sendPush(
                 userId,
                 '⏰ Promemoria Entrata',
                 `Tra 10 minuti inizia il tuo turno (${startTime}). Ricordati di timbrare l'entrata!`
             );
-        } else if (type === 'end' && alreadyClockedIn) {
+            res.sendStatus(200);
+            return;
+        }
+
+        const alreadyClockedIn = (await db.doc(`activeShifts/${userId}`).get()).exists;
+
+        if (type === 'end' && alreadyClockedIn) {
             await sendPush(
                 userId,
                 '⏰ Promemoria Uscita',

@@ -148,11 +148,13 @@ exports.scheduleDailyShiftTasks = (0, scheduler_1.onSchedule)({ schedule: '0 0 *
 // Handler chiamato da Cloud Tasks al momento giusto
 exports.handleShiftReminder = (0, https_1.onRequest)({ region: LOCATION, invoker: 'public' }, async (req, res) => {
     const { userId, type, startTime, endTime } = req.body;
-    const alreadyClockedIn = (await db.doc(`activeShifts/${userId}`).get()).exists;
-    if (type === 'start' && !alreadyClockedIn) {
+    if (type === 'start') {
         await sendPush(userId, '⏰ Promemoria Entrata', `Tra 10 minuti inizia il tuo turno (${startTime}). Ricordati di timbrare l'entrata!`);
+        res.sendStatus(200);
+        return;
     }
-    else if (type === 'end' && alreadyClockedIn) {
+    const alreadyClockedIn = (await db.doc(`activeShifts/${userId}`).get()).exists;
+    if (type === 'end' && alreadyClockedIn) {
         await sendPush(userId, '⏰ Promemoria Uscita', `Sono le ${endTime} e hai ancora il turno attivo. Ricordati di timbrare l'uscita!`);
     }
     res.sendStatus(200);
