@@ -242,3 +242,37 @@ export const onLeaveRequestUpdated = onDocumentUpdated(
         }
     }
 );
+
+// Notifica admin quando un dipendente propone un cambio turno
+export const onShiftSwapRequestCreated = onDocumentCreated(
+    { document: 'shiftSwapRequests/{requestId}', region: LOCATION },
+    async (event) => {
+        const data = event.data?.data() as { requesterName?: string; targetUserName?: string } | undefined;
+        if (!data) return;
+        await sendPushToAllAdmins(
+            '🔄 Nuovo Cambio Turno',
+            `${data.requesterName ?? 'Un dipendente'} vuole scambiare un turno con ${data.targetUserName ?? 'un collega'}`
+        );
+    }
+);
+
+// Notifica entrambi i dipendenti coinvolti quando admin approva o rifiuta il cambio turno
+export const onShiftSwapRequestUpdated = onDocumentUpdated(
+    { document: 'shiftSwapRequests/{requestId}', region: LOCATION },
+    async (event) => {
+        const before = event.data?.before?.data() as { status?: string } | undefined;
+        const after  = event.data?.after?.data()  as { status?: string; requesterId?: string; targetUserId?: string } | undefined;
+        if (!before || !after) return;
+        if (before.status === after.status) return;
+        if (!after.requesterId || !after.targetUserId) return;
+        if (after.status !== 'approved' && after.status !== 'rejected') return;
+        const title = after.status === 'approved' ? '✅ Cambio Turno Approvato' : '❌ Cambio Turno Rifiutato';
+        const body = after.status === 'approved'
+            ? 'Il tuo cambio turno è stato approvato!'
+            : 'Il tuo cambio turno è stato rifiutato.';
+        await Promise.all([
+            sendPush(after.requesterId, title, body),
+            sendPush(after.targetUserId, title, body),
+        ]);
+    }
+);

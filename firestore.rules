@@ -98,5 +98,21 @@ service cloud.firestore {
       // Solo admin può aggiornare (approvare/rifiutare)
       allow update, delete: if isAdmin();
     }
+
+    // Shift Swap Requests - richieste cambio turno tra dipendenti
+    match /shiftSwapRequests/{requestId} {
+      // Entrambi i dipendenti coinvolti leggono la richiesta, admin legge tutte
+      allow read: if request.auth != null && (
+        resource.data.requesterId == request.auth.uid ||
+        resource.data.targetUserId == request.auth.uid ||
+        isAdmin()
+      );
+      // Solo il richiedente crea la propria richiesta
+      allow create: if request.auth != null &&
+        request.resource.data.requesterId == request.auth.uid &&
+        request.resource.data.status == 'pending';
+      // Solo admin può aggiornare (approvare/rifiutare)
+      allow update, delete: if isAdmin();
+    }
   }
 }

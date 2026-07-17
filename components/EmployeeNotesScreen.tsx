@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import type { User, SalaryAdvance, FutureLeave, LeaveRequest } from '../types';
-import { getSalaryAdvances, addSalaryAdvance, deleteSalaryAdvance, getFutureLeaves, addFutureLeave, deleteFutureLeave, addLeaveRequest, getUserLeaveRequests } from '../services/dbService';
+import type { User, SalaryAdvance, FutureLeave, LeaveRequest, Shift, PublicUser, ShiftSwapRequest } from '../types';
+import { getSalaryAdvances, addSalaryAdvance, deleteSalaryAdvance, getFutureLeaves, addFutureLeave, deleteFutureLeave, addLeaveRequest, getUserLeaveRequests, getShifts, getPublicUsers, addShiftSwapRequest, getUserShiftSwapRequests } from '../services/dbService';
 
 interface EmployeeNotesScreenProps {
     selectedUser: User;
@@ -28,19 +28,48 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
     const [reqSending, setReqSending] = useState(false);
     const [reqSuccess, setReqSuccess] = useState(false);
 
+    // Tab richieste (solo dipendente)
+    const [activeRequestTab, setActiveRequestTab] = useState<'permesso' | 'turno'>('permesso');
+
+    // Dipendente: richiesta cambio turno
+    const [myShifts, setMyShifts] = useState<Shift[]>([]);
+    const [colleagues, setColleagues] = useState<PublicUser[]>([]);
+    const [swapRequests, setSwapRequests] = useState<ShiftSwapRequest[]>([]);
+    const [swapMyShiftId, setSwapMyShiftId] = useState('');
+    const [swapColleagueId, setSwapColleagueId] = useState('');
+    const [colleagueShifts, setColleagueShifts] = useState<Shift[]>([]);
+    const [loadingColleagueShifts, setLoadingColleagueShifts] = useState(false);
+    const [swapColleagueShiftId, setSwapColleagueShiftId] = useState('');
+    const [swapSending, setSwapSending] = useState(false);
+    const [swapSuccess, setSwapSuccess] = useState(false);
+
     useEffect(() => { loadData(); }, [selectedUser.id]);
+
+    useEffect(() => {
+        if (!swapColleagueId) { setColleagueShifts([]); return; }
+        setLoadingColleagueShifts(true);
+        getShifts(swapColleagueId)
+            .then(shifts => setColleagueShifts(shifts.filter(s => new Date(s.startTime) > new Date())))
+            .finally(() => setLoadingColleagueShifts(false));
+    }, [swapColleagueId]);
 
     const loadData = async () => {
         setLoading(true);
         try {
-            const [adv, lv, reqs] = await Promise.all([
+            const [adv, lv, reqs, shifts, users, swapReqs] = await Promise.all([
                 getSalaryAdvances(selectedUser.id),
                 getFutureLeaves(selectedUser.id),
                 !isAdmin ? getUserLeaveRequests(selectedUser.id) : Promise.resolve([]),
+                !isAdmin ? getShifts(selectedUser.id) : Promise.resolve([]),
+                !isAdmin ? getPublicUsers() : Promise.resolve([]),
+                !isAdmin ? getUserShiftSwapRequests(selectedUser.id) : Promise.resolve([]),
             ]);
             setAdvances(adv);
             setLeaves(lv);
             setLeaveRequests(reqs);
+            setMyShifts(shifts.filter(s => new Date(s.startTime) > new Date()));
+            setColleagues(users.filter(u => u.id !== selectedUser.id));
+            setSwapRequests(swapReqs);
         } finally { setLoading(false); }
     };
 
@@ -110,8 +139,41 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
         } finally { setReqSending(false); }
     };
 
+    const handleSendSwapRequest = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!swapMyShiftId || !swapColleagueId || !swapColleagueShiftId) return;
+        const myShift = myShifts.find(s => s.id === swapMyShiftId);
+        const colleague = colleagues.find(c => c.id === swapColleagueId);
+        const colleagueShift = colleagueShifts.find(s => s.id === swapColleagueShiftId);
+        if (!myShift || !colleague || !colleagueShift) return;
+        setSwapSending(true);
+        try {
+            const req: ShiftSwapRequest = {
+                id: `swap_${Date.now()}`,
+                requesterId: selectedUser.id,
+                requesterName: `${selectedUser.name} ${selectedUser.surname}`,
+                requesterShiftId: myShift.id,
+                requesterShiftDate: myShift.startTime,
+                targetUserId: colleague.id,
+                targetUserName: `${colleague.name} ${colleague.surname}`,
+                targetShiftId: colleagueShift.id,
+                targetShiftDate: colleagueShift.startTime,
+                status: 'pending',
+                requestedAt: new Date().toISOString(),
+            };
+            await addShiftSwapRequest(req);
+            setSwapRequests(prev => [req, ...prev]);
+            setSwapMyShiftId(''); setSwapColleagueId(''); setSwapColleagueShiftId(''); setColleagueShifts([]);
+            setSwapSuccess(true);
+            setTimeout(() => setSwapSuccess(false), 3000);
+        } catch {
+            alert('Errore durante l\'invio della richiesta di cambio turno.');
+        } finally { setSwapSending(false); }
+    };
+
     const fmtCurrency = (n: number) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n);
     const fmtDate = (s: string) => new Date(s).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const fmtDateTime = (s: string) => new Date(s).toLocaleString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
     if (loading) return <div className="text-center py-12 text-slate-400 animate-pulse">Caricamento...</div>;
 
@@ -238,13 +300,22 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
                 </div>
             </div>
 
-            {/* Sezione richieste permesso (solo dipendente) */}
+            {/* Sezione richieste (solo dipendente): permesso o cambio turno */}
             {!isAdmin && (
                 <div className="glass-panel rounded-2xl p-5">
-                    <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        📤 Richiedi Permesso
-                    </h2>
+                    <div className="flex items-center gap-2 mb-4 p-1 bg-slate-100 rounded-xl w-fit">
+                        <button type="button" onClick={() => setActiveRequestTab('permesso')}
+                            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${activeRequestTab === 'permesso' ? 'bg-white text-slate-800 shadow' : 'text-slate-500'}`}>
+                            📤 Permesso
+                        </button>
+                        <button type="button" onClick={() => setActiveRequestTab('turno')}
+                            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${activeRequestTab === 'turno' ? 'bg-white text-slate-800 shadow' : 'text-slate-500'}`}>
+                            🔄 Cambio Turno
+                        </button>
+                    </div>
 
+                    {activeRequestTab === 'permesso' && (
+                    <>
                     <form onSubmit={handleSendRequest} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 mb-5">
                         <div className="grid grid-cols-2 gap-3">
                             <div>
@@ -311,6 +382,104 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
                                 );
                             })}
                         </div>
+                    )}
+                    </>
+                    )}
+
+                    {activeRequestTab === 'turno' && (
+                    <>
+                    <form onSubmit={handleSendSwapRequest} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 mb-5">
+                        <div>
+                            <label className="text-xs text-slate-500 block mb-1">Il tuo turno da cedere *</label>
+                            <select value={swapMyShiftId} onChange={e => setSwapMyShiftId(e.target.value)}
+                                className="glass-input w-full px-3 py-2 rounded-xl text-sm" required>
+                                <option value="">Seleziona un turno...</option>
+                                {myShifts.map(s => (
+                                    <option key={s.id} value={s.id}>{fmtDateTime(s.startTime)}</option>
+                                ))}
+                            </select>
+                            {myShifts.length === 0 && (
+                                <p className="text-xs text-slate-400 mt-1">Non hai turni futuri da cedere.</p>
+                            )}
+                        </div>
+                        <div>
+                            <label className="text-xs text-slate-500 block mb-1">Collega *</label>
+                            <select value={swapColleagueId}
+                                onChange={e => { setSwapColleagueId(e.target.value); setSwapColleagueShiftId(''); }}
+                                className="glass-input w-full px-3 py-2 rounded-xl text-sm" required>
+                                <option value="">Seleziona un collega...</option>
+                                {colleagues.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name} {c.surname}</option>
+                                ))}
+                            </select>
+                        </div>
+                        {swapColleagueId && (
+                            <div>
+                                <label className="text-xs text-slate-500 block mb-1">Turno del collega da ricevere *</label>
+                                <select value={swapColleagueShiftId} onChange={e => setSwapColleagueShiftId(e.target.value)}
+                                    className="glass-input w-full px-3 py-2 rounded-xl text-sm" required
+                                    disabled={loadingColleagueShifts}>
+                                    <option value="">{loadingColleagueShifts ? 'Caricamento...' : 'Seleziona un turno...'}</option>
+                                    {colleagueShifts.map(s => (
+                                        <option key={s.id} value={s.id}>{fmtDateTime(s.startTime)}</option>
+                                    ))}
+                                </select>
+                                {!loadingColleagueShifts && colleagueShifts.length === 0 && (
+                                    <p className="text-xs text-slate-400 mt-1">Il collega non ha turni futuri.</p>
+                                )}
+                            </div>
+                        )}
+                        {swapSuccess && (
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-emerald-700 text-sm text-center font-semibold">
+                                ✅ Richiesta di cambio turno inviata!
+                            </div>
+                        )}
+                        <button type="submit" disabled={swapSending || !swapMyShiftId || !swapColleagueId || !swapColleagueShiftId}
+                            className="w-full py-2.5 rounded-xl font-bold text-white text-sm glass-button disabled:opacity-50">
+                            {swapSending ? 'Invio...' : '🔄 Invia Richiesta di Cambio'}
+                        </button>
+                    </form>
+
+                    {/* Lista richieste cambio turno proprie */}
+                    {swapRequests.length > 0 && (
+                        <div className="space-y-2">
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Le tue richieste di cambio</p>
+                            {swapRequests.map(req => {
+                                const statusStyle =
+                                    req.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                    req.status === 'rejected' ? 'bg-red-50 text-red-600 border-red-200' :
+                                    'bg-amber-50 text-amber-700 border-amber-200';
+                                const statusLabel =
+                                    req.status === 'approved' ? '✅ Approvato' :
+                                    req.status === 'rejected' ? '❌ Rifiutato' : '⏳ In attesa';
+                                const isRequester = req.requesterId === selectedUser.id;
+                                const otherName = isRequester ? req.targetUserName : req.requesterName;
+                                const myDate = isRequester ? req.requesterShiftDate : req.targetShiftDate;
+                                const otherDate = isRequester ? req.targetShiftDate : req.requesterShiftDate;
+                                return (
+                                    <div key={req.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                                <p className="font-semibold text-slate-700 text-sm">
+                                                    {fmtDateTime(myDate)} ↔ {fmtDateTime(otherDate)}
+                                                </p>
+                                                <p className="text-xs text-slate-500 mt-0.5">
+                                                    {isRequester ? `Con ${otherName}` : `${otherName} ti propone lo scambio`}
+                                                </p>
+                                                <p className="text-xs text-slate-400 mt-0.5">
+                                                    Inviata {new Date(req.requestedAt).toLocaleDateString('it-IT')}
+                                                </p>
+                                            </div>
+                                            <span className={`text-xs font-bold px-2 py-1 rounded-full border flex-shrink-0 ${statusStyle}`}>
+                                                {statusLabel}
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                    </>
                     )}
                 </div>
             )}

@@ -10,8 +10,9 @@ import {
     onSnapshot,
     query,
     where,
+    writeBatch,
 } from 'firebase/firestore';
-import type { User, Shift, PublicUser, AssignedShift, Document, SalaryAdvance, FutureLeave, LeaveRequest } from '../types';
+import type { User, Shift, PublicUser, AssignedShift, Document, SalaryAdvance, FutureLeave, LeaveRequest, ShiftSwapRequest } from '../types';
 
 /** Get password for a user (admin only) — reads from adminPasswords collection */
 export const getUserPassword = async (userId: string): Promise<string | null> => {
@@ -314,6 +315,88 @@ export const approveLeaveRequest = async (request: LeaveRequest): Promise<void> 
 
 export const rejectLeaveRequest = async (request: LeaveRequest): Promise<void> => {
     await setDoc(doc(db, 'leaveRequests', request.id), {
+        ...request,
+        status: 'rejected',
+        reviewedAt: new Date().toISOString(),
+    });
+};
+
+// Shift Swap Requests Service
+
+export const addShiftSwapRequest = async (request: ShiftSwapRequest): Promise<void> => {
+    await setDoc(doc(db, 'shiftSwapRequests', request.id), request);
+};
+
+export const getAllShiftSwapRequests = async (): Promise<ShiftSwapRequest[]> => {
+    const snap = await getDocs(collection(db, 'shiftSwapRequests'));
+    return snap.docs
+        .map(d => d.data() as ShiftSwapRequest)
+        .sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
+};
+
+export const getUserShiftSwapRequests = async (userId: string): Promise<ShiftSwapRequest[]> => {
+    const [asRequester, asTarget] = await Promise.all([
+        getDocs(query(collection(db, 'shiftSwapRequests'), where('requesterId', '==', userId))),
+        getDocs(query(collection(db, 'shiftSwapRequests'), where('targetUserId', '==', userId))),
+    ]);
+    const map = new Map<string, ShiftSwapRequest>();
+    [...asRequester.docs, ...asTarget.docs].forEach(d => map.set(d.id, d.data() as ShiftSwapRequest));
+    return [...map.values()].sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
+};
+
+export const approveShiftSwap = async (request: ShiftSwapRequest): Promise<void> => {
+    const requesterShiftRef = doc(db, 'users', request.requesterId, 'shifts', request.requesterShiftId);
+    const targetShiftRef = doc(db, 'users', request.targetUserId, 'shifts', request.targetShiftId);
+    const [requesterSnap, targetSnap] = await Promise.all([getDoc(requesterShiftRef), getDoc(targetShiftRef)]);
+    if (!requesterSnap.exists() || !targetSnap.exists()) {
+        throw new Error('Uno dei due turni non esiste più (forse già scambiato).');
+    }
+    const requesterShift = requesterSnap.data() as Shift;
+    const targetShift = targetSnap.data() as Shift;
+
+    const batch = writeBatch(db);
+    // Scambio reale: il turno cambia proprietario (non solo orario), perché le ore lavorate
+    // si calcolano in base a sotto quale utente vive il documento shift.
+    batch.delete(requesterShiftRef);
+    batch.delete(targetShiftRef);
+    batch.set(doc(db, 'users', request.targetUserId, 'shifts', request.requesterShiftId), requesterShift);
+    batch.set(doc(db, 'users', request.requesterId, 'shifts', request.targetShiftId), targetShift);
+    batch.set(doc(db, 'shiftSwapRequests', request.id), {
+        ...request,
+        status: 'approved',
+        reviewedAt: new Date().toISOString(),
+    });
+
+    // Auto-rifiuta eventuali altre richieste pending che puntano a uno dei due turni appena scambiati
+    const [otherAsRequesterShift, otherAsTargetShift] = await Promise.all([
+        getDocs(query(
+            collection(db, 'shiftSwapRequests'),
+            where('requesterShiftId', 'in', [request.requesterShiftId, request.targetShiftId]),
+            where('status', '==', 'pending')
+        )),
+        getDocs(query(
+            collection(db, 'shiftSwapRequests'),
+            where('targetShiftId', 'in', [request.requesterShiftId, request.targetShiftId]),
+            where('status', '==', 'pending')
+        )),
+    ]);
+    const stale = new Map<string, ShiftSwapRequest>();
+    [...otherAsRequesterShift.docs, ...otherAsTargetShift.docs].forEach(d => {
+        if (d.id !== request.id) stale.set(d.id, d.data() as ShiftSwapRequest);
+    });
+    stale.forEach((data, id) => {
+        batch.set(doc(db, 'shiftSwapRequests', id), {
+            ...data,
+            status: 'rejected',
+            reviewedAt: new Date().toISOString(),
+        });
+    });
+
+    await batch.commit();
+};
+
+export const rejectShiftSwap = async (request: ShiftSwapRequest): Promise<void> => {
+    await setDoc(doc(db, 'shiftSwapRequests', request.id), {
         ...request,
         status: 'rejected',
         reviewedAt: new Date().toISOString(),

@@ -85,3 +85,19 @@ export interface LeaveRequest {
   requestedAt: string; // ISO string
   reviewedAt?: string; // ISO string
 }
+
+// Richiesta di scambio turno tra due dipendenti (inviata dal richiedente, approvata dall'admin)
+export interface ShiftSwapRequest {
+  id: string;
+  requesterId: string;
+  requesterName: string;
+  requesterShiftId: string;
+  requesterShiftDate: string; // snapshot ISO dello startTime del turno, per display
+  targetUserId: string;
+  targetUserName: string;
+  targetShiftId: string;
+  targetShiftDate: string; // snapshot ISO dello startTime del turno, per display
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: string; // ISO string
+  reviewedAt?: string; // ISO string
+}

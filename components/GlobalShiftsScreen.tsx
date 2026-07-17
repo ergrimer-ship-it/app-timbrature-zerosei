@@ -1,17 +1,21 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { WeeklyCalendar } from './WeeklyCalendar';
 import { EditShiftModal } from './EditShiftModal';
-import { getShifts, addShift, getPublicUsers } from '../services/dbService';
+import { getShifts, addShift, getPublicUsers, getAllShiftSwapRequests, approveShiftSwap, rejectShiftSwap } from '../services/dbService';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
-import type { Shift, AssignedShift, User } from '../types';
+import type { Shift, AssignedShift, User, ShiftSwapRequest } from '../types';
 
 interface GlobalShiftsScreenProps {
     assignedShifts: AssignedShift[];
+    user: User;
 }
 
-export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assignedShifts }) => {
+export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assignedShifts, user }) => {
     const [users, setUsers] = useState<User[]>([]);
     const [allShifts, setAllShifts] = useState<(Shift & { userId: string })[]>([]);
+
+    const [swapRequests, setSwapRequests] = useState<ShiftSwapRequest[]>([]);
+    const [swapActionId, setSwapActionId] = useState<string | null>(null);
 
     const [weekStart, setWeekStart] = useState(() => {
         const now = new Date();
@@ -46,6 +50,47 @@ export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assigned
         };
         load();
     }, []);
+
+    useEffect(() => {
+        if (!user.isAdmin) return;
+        getAllShiftSwapRequests().then(reqs => setSwapRequests(reqs.filter(r => r.status === 'pending')));
+    }, [user.isAdmin]);
+
+    const handleApproveSwap = async (req: ShiftSwapRequest) => {
+        setSwapActionId(req.id);
+        try {
+            await approveShiftSwap(req);
+            setSwapRequests(prev => prev.filter(r => r.id !== req.id));
+            setAllShifts(prev => {
+                const withoutSwapped = prev.filter(s =>
+                    !(s.userId === req.requesterId && s.id === req.requesterShiftId) &&
+                    !(s.userId === req.targetUserId && s.id === req.targetShiftId)
+                );
+                const requesterShift = prev.find(s => s.userId === req.requesterId && s.id === req.requesterShiftId);
+                const targetShift = prev.find(s => s.userId === req.targetUserId && s.id === req.targetShiftId);
+                const swapped: (Shift & { userId: string })[] = [];
+                if (requesterShift) swapped.push({ ...requesterShift, userId: req.targetUserId });
+                if (targetShift) swapped.push({ ...targetShift, userId: req.requesterId });
+                return [...withoutSwapped, ...swapped];
+            });
+        } catch (err: any) {
+            alert(err?.message || 'Errore durante l\'approvazione dello scambio.');
+        } finally {
+            setSwapActionId(null);
+        }
+    };
+
+    const handleRejectSwap = async (req: ShiftSwapRequest) => {
+        setSwapActionId(req.id);
+        try {
+            await rejectShiftSwap(req);
+            setSwapRequests(prev => prev.filter(r => r.id !== req.id));
+        } finally {
+            setSwapActionId(null);
+        }
+    };
+
+    const fmtSwapDate = (s: string) => new Date(s).toLocaleString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
     const weekDates = useMemo(() => {
         return Array.from({ length: 7 }, (_, i) => {
@@ -121,6 +166,47 @@ export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assigned
                     </button>
                 </div>
             </div>
+
+            {user.isAdmin && swapRequests.length > 0 && (
+                <div className="glass-panel rounded-2xl p-5">
+                    <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        🔄 Richieste Cambio Turno
+                        <span className="text-xs bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full">{swapRequests.length}</span>
+                    </h2>
+                    <div className="space-y-2">
+                        {swapRequests.map(req => {
+                            const requesterPast = new Date(req.requesterShiftDate) < new Date();
+                            const targetPast = new Date(req.targetShiftDate) < new Date();
+                            return (
+                                <div key={req.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap">
+                                    <div>
+                                        <p className="font-semibold text-slate-700 text-sm">
+                                            {req.requesterName}{' '}
+                                            <span className={requesterPast ? 'text-red-500 line-through' : ''}>{fmtSwapDate(req.requesterShiftDate)}</span>
+                                            {' '}↔{' '}
+                                            {req.targetUserName}{' '}
+                                            <span className={targetPast ? 'text-red-500 line-through' : ''}>{fmtSwapDate(req.targetShiftDate)}</span>
+                                        </p>
+                                        {(requesterPast || targetPast) && (
+                                            <p className="text-xs text-red-500 mt-0.5">⚠️ Uno dei due turni è già passato</p>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => handleApproveSwap(req)} disabled={swapActionId === req.id}
+                                            className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50">
+                                            ✅ Approva
+                                        </button>
+                                        <button onClick={() => handleRejectSwap(req)} disabled={swapActionId === req.id}
+                                            className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50">
+                                            ❌ Rifiuta
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             <WeeklyCalendar
                 shifts={allShifts}
