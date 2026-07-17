@@ -30,7 +30,9 @@ service cloud.firestore {
       
       // Subcollections
       match /shifts/{shiftId} {
-        allow read, write: if isOwner(userId) || isAdmin();
+        // Read is team-visible (Panoramica Turni shows everyone's real clock-ins). Write stays owner/admin only.
+        allow read: if request.auth != null;
+        allow write: if isOwner(userId) || isAdmin();
       }
       
       match /documents/{docId} {
