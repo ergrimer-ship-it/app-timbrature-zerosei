@@ -343,6 +343,20 @@ export const rejectLeaveRequest = async (request: LeaveRequest): Promise<void> =
 // Shift Swap Requests Service
 
 export const addShiftSwapRequest = async (request: ShiftSwapRequest): Promise<void> => {
+    // Impedisce di proporre due volte lo scambio sugli stessi turni mentre una richiesta è già
+    // in corso o già conclusa (altrimenti entrambe potrebbero essere accettate quasi in contemporanea
+    // e finire "raddoppiate" nello storico).
+    const [asRequesterShift, asTargetShift] = await Promise.all([
+        getDocs(query(collection(db, 'shiftSwapRequests'), where('requesterShiftId', 'in', [request.requesterShiftId, request.targetShiftId]))),
+        getDocs(query(collection(db, 'shiftSwapRequests'), where('targetShiftId', 'in', [request.requesterShiftId, request.targetShiftId]))),
+    ]);
+    const alreadyInvolved = [...asRequesterShift.docs, ...asTargetShift.docs].some(d => {
+        const status = (d.data() as ShiftSwapRequest).status;
+        return status === 'pending' || status === 'approved';
+    });
+    if (alreadyInvolved) {
+        throw new Error('Uno dei due turni è già coinvolto in un altro cambio turno in corso o già concluso.');
+    }
     await setDoc(doc(db, 'shiftSwapRequests', request.id), request);
 };
 

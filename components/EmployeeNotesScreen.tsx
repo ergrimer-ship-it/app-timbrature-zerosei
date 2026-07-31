@@ -183,8 +183,8 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
             setSwapMyShiftId(''); setSwapColleagueId(''); setSwapColleagueShiftId('');
             setSwapSuccess(true);
             setTimeout(() => setSwapSuccess(false), 3000);
-        } catch {
-            alert('Errore durante l\'invio della richiesta di cambio turno.');
+        } catch (err: any) {
+            alert(err?.message || 'Errore durante l\'invio della richiesta di cambio turno.');
         } finally { setSwapSending(false); }
     };
 

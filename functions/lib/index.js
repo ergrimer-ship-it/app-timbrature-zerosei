@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onShiftSwapRequestUpdated = exports.onShiftSwapRequestCreated = exports.onLeaveRequestUpdated = exports.onLeaveRequestCreated = exports.onNewNotification = exports.handleShiftReminder = exports.scheduleDailyShiftTasks = exports.onAssignedShiftsUpdated = void 0;
+exports.onShiftSwapRequestUpdated = exports.onShiftSwapRequestCreated = exports.debugDumpSwapRequests = exports.onLeaveRequestUpdated = exports.onLeaveRequestCreated = exports.onNewNotification = exports.handleShiftReminder = exports.scheduleDailyShiftTasks = exports.onAssignedShiftsUpdated = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const https_1 = require("firebase-functions/v2/https");
@@ -197,6 +197,17 @@ exports.onLeaveRequestUpdated = (0, firestore_1.onDocumentUpdated)({ document: '
         await sendPush(after.userId, '❌ Permesso Rifiutato', 'La tua richiesta di permesso è stata rifiutata.');
     }
 });
+// TEMP DEBUG — da rimuovere: dump/pulizia grezza di shiftSwapRequests per il duplicato in Cambi Turno
+exports.debugDumpSwapRequests = (0, https_1.onRequest)({ region: LOCATION, invoker: 'public' }, async (req, res) => {
+    const deleteId = req.query.delete;
+    if (deleteId) {
+        await db.doc(`shiftSwapRequests/${deleteId}`).delete();
+        res.json({ deleted: deleteId });
+        return;
+    }
+    const snap = await db.collection('shiftSwapRequests').get();
+    res.json(snap.docs.map(d => (Object.assign({ docId: d.id }, d.data()))));
+});
 // Notifica il collega bersaglio quando un dipendente propone un cambio turno (deve accettare/rifiutare lui)
 exports.onShiftSwapRequestCreated = (0, firestore_1.onDocumentCreated)({ document: 'shiftSwapRequests/{requestId}', region: LOCATION }, async (event) => {
     var _a, _b;
@@ -208,7 +219,7 @@ exports.onShiftSwapRequestCreated = (0, firestore_1.onDocumentCreated)({ documen
 // Quando la richiesta viene accettata o rifiutata (dal collega bersaglio o dall'admin):
 // esegue davvero lo scambio sul roster (assignedShifts) e notifica gli interessati.
 exports.onShiftSwapRequestUpdated = (0, firestore_1.onDocumentUpdated)({ document: 'shiftSwapRequests/{requestId}', region: LOCATION }, async (event) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     const before = (_b = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before) === null || _b === void 0 ? void 0 : _b.data();
     const after = (_d = (_c = event.data) === null || _c === void 0 ? void 0 : _c.after) === null || _d === void 0 ? void 0 : _d.data();
     const requestId = event.params.requestId;
@@ -222,15 +233,31 @@ exports.onShiftSwapRequestUpdated = (0, firestore_1.onDocumentUpdated)({ documen
         return;
     if (after.status === 'approved') {
         if (after.requesterShiftId && after.targetShiftId) {
-            const rosterRef = db.doc('assignedShifts/all');
-            const rosterSnap = await rosterRef.get();
-            const shifts = (_f = (_e = rosterSnap.data()) === null || _e === void 0 ? void 0 : _e.shifts) !== null && _f !== void 0 ? _f : [];
-            const requesterIdx = shifts.findIndex(s => s.id === after.requesterShiftId);
-            const targetIdx = shifts.findIndex(s => s.id === after.targetShiftId);
-            if (requesterIdx !== -1 && targetIdx !== -1) {
-                shifts[requesterIdx] = Object.assign(Object.assign({}, shifts[requesterIdx]), { userId: after.targetUserId });
-                shifts[targetIdx] = Object.assign(Object.assign({}, shifts[targetIdx]), { userId: after.requesterId });
-                await rosterRef.set({ shifts });
+            const requesterId = after.requesterId;
+            const targetUserId = after.targetUserId;
+            const requesterShiftId = after.requesterShiftId;
+            const targetShiftId = after.targetShiftId;
+            // Transazione: se due richieste gemelle sugli stessi turni vengono accettate quasi in
+            // contemporanea, solo una delle due deve davvero applicare lo scambio.
+            const applied = await db.runTransaction(async (tx) => {
+                var _a, _b;
+                const rosterRef = db.doc('assignedShifts/all');
+                const rosterSnap = await tx.get(rosterRef);
+                const shifts = (_b = (_a = rosterSnap.data()) === null || _a === void 0 ? void 0 : _a.shifts) !== null && _b !== void 0 ? _b : [];
+                const requesterIdx = shifts.findIndex(s => s.id === requesterShiftId);
+                const targetIdx = shifts.findIndex(s => s.id === targetShiftId);
+                if (requesterIdx === -1 || targetIdx === -1)
+                    return false;
+                // Già scambiato da un'altra richiesta gemella nel frattempo: non rifare lo scambio
+                // (altrimenti si tornerebbe indietro invece di applicarlo).
+                if (shifts[requesterIdx].userId === targetUserId)
+                    return false;
+                shifts[requesterIdx] = Object.assign(Object.assign({}, shifts[requesterIdx]), { userId: targetUserId });
+                shifts[targetIdx] = Object.assign(Object.assign({}, shifts[targetIdx]), { userId: requesterId });
+                tx.set(rosterRef, { shifts });
+                return true;
+            });
+            if (applied) {
                 // Auto-rifiuta eventuali altre richieste pending che puntano a uno dei due turni appena scambiati
                 const [asRequester, asTarget] = await Promise.all([
                     db.collection('shiftSwapRequests')
@@ -247,12 +274,12 @@ exports.onShiftSwapRequestUpdated = (0, firestore_1.onDocumentUpdated)({ documen
             }
         }
         await Promise.all([
-            sendPush(after.requesterId, '✅ Cambio Turno Accettato', `${(_g = after.targetUserName) !== null && _g !== void 0 ? _g : 'Il collega'} ha accettato lo scambio!`),
-            sendPushToAllAdmins('🔄 Cambio Turno Effettuato', `${(_h = after.requesterName) !== null && _h !== void 0 ? _h : 'Un dipendente'} e ${(_j = after.targetUserName) !== null && _j !== void 0 ? _j : 'un collega'} hanno scambiato un turno`),
+            sendPush(after.requesterId, '✅ Cambio Turno Accettato', `${(_e = after.targetUserName) !== null && _e !== void 0 ? _e : 'Il collega'} ha accettato lo scambio!`),
+            sendPushToAllAdmins('🔄 Cambio Turno Effettuato', `${(_f = after.requesterName) !== null && _f !== void 0 ? _f : 'Un dipendente'} e ${(_g = after.targetUserName) !== null && _g !== void 0 ? _g : 'un collega'} hanno scambiato un turno`),
         ]);
     }
     else {
-        await sendPush(after.requesterId, '❌ Cambio Turno Rifiutato', `${(_k = after.targetUserName) !== null && _k !== void 0 ? _k : 'Il collega'} ha rifiutato lo scambio.`);
+        await sendPush(after.requesterId, '❌ Cambio Turno Rifiutato', `${(_h = after.targetUserName) !== null && _h !== void 0 ? _h : 'Il collega'} ha rifiutato lo scambio.`);
     }
 });
 //# sourceMappingURL=index.js.map

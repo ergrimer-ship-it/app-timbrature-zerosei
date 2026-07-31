@@ -286,16 +286,29 @@ export const onShiftSwapRequestUpdated = onDocumentUpdated(
 
         if (after.status === 'approved') {
             if (after.requesterShiftId && after.targetShiftId) {
-                const rosterRef = db.doc('assignedShifts/all');
-                const rosterSnap = await rosterRef.get();
-                const shifts: AssignedShift[] = rosterSnap.data()?.shifts ?? [];
-                const requesterIdx = shifts.findIndex(s => s.id === after.requesterShiftId);
-                const targetIdx = shifts.findIndex(s => s.id === after.targetShiftId);
-                if (requesterIdx !== -1 && targetIdx !== -1) {
-                    shifts[requesterIdx] = { ...shifts[requesterIdx], userId: after.targetUserId };
-                    shifts[targetIdx] = { ...shifts[targetIdx], userId: after.requesterId };
-                    await rosterRef.set({ shifts });
+                const requesterId = after.requesterId;
+                const targetUserId = after.targetUserId;
+                const requesterShiftId = after.requesterShiftId;
+                const targetShiftId = after.targetShiftId;
+                // Transazione: se due richieste gemelle sugli stessi turni vengono accettate quasi in
+                // contemporanea, solo una delle due deve davvero applicare lo scambio.
+                const applied = await db.runTransaction(async (tx) => {
+                    const rosterRef = db.doc('assignedShifts/all');
+                    const rosterSnap = await tx.get(rosterRef);
+                    const shifts: AssignedShift[] = rosterSnap.data()?.shifts ?? [];
+                    const requesterIdx = shifts.findIndex(s => s.id === requesterShiftId);
+                    const targetIdx = shifts.findIndex(s => s.id === targetShiftId);
+                    if (requesterIdx === -1 || targetIdx === -1) return false;
+                    // Già scambiato da un'altra richiesta gemella nel frattempo: non rifare lo scambio
+                    // (altrimenti si tornerebbe indietro invece di applicarlo).
+                    if (shifts[requesterIdx].userId === targetUserId) return false;
+                    shifts[requesterIdx] = { ...shifts[requesterIdx], userId: targetUserId };
+                    shifts[targetIdx] = { ...shifts[targetIdx], userId: requesterId };
+                    tx.set(rosterRef, { shifts });
+                    return true;
+                });
 
+                if (applied) {
                     // Auto-rifiuta eventuali altre richieste pending che puntano a uno dei due turni appena scambiati
                     const [asRequester, asTarget] = await Promise.all([
                         db.collection('shiftSwapRequests')
