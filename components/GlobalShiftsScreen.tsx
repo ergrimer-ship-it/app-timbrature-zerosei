@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { WeeklyCalendar } from './WeeklyCalendar';
 import { EditShiftModal } from './EditShiftModal';
-import { getShifts, addShift, getPublicUsers, getAllShiftSwapRequests, approveShiftSwap, rejectShiftSwap } from '../services/dbService';
+import { getShifts, addShift, getPublicUsers, getAllShiftSwapRequests, approveShiftSwap, rejectShiftSwap, syncPublicUserRoles } from '../services/dbService';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
 import type { Shift, AssignedShift, User, ShiftSwapRequest } from '../types';
 
@@ -55,6 +55,8 @@ export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assigned
     useEffect(() => {
         if (!user.isAdmin) return;
         getAllShiftSwapRequests().then(reqs => setSwapRequests(reqs.filter(r => r.status === 'pending')));
+        // Self-heal: allinea eventuali publicUsers con ruolo disallineato rispetto a users
+        syncPublicUserRoles().catch(() => {});
     }, [user.isAdmin]);
 
     const handleApproveSwap = async (req: ShiftSwapRequest) => {

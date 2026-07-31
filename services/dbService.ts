@@ -7,6 +7,7 @@ import {
     getDoc,
     getDocs,
     deleteDoc,
+    deleteField,
     onSnapshot,
     query,
     where,
@@ -23,14 +24,20 @@ export const getUserPassword = async (userId: string): Promise<string | null> =>
     return null;
 };
 
-/** Update role for a user (admin only) */
+/** Update role for a user (admin only) — tiene allineato anche il profilo pubblico */
 export const updateUserRole = async (userId: string, role: string | null): Promise<void> => {
     const userRef = doc(db, 'users', userId);
+    const publicUserRef = doc(db, 'publicUsers', userId);
     if (role) {
-        await setDoc(userRef, { role }, { merge: true });
+        await Promise.all([
+            setDoc(userRef, { role }, { merge: true }),
+            setDoc(publicUserRef, { role }, { merge: true }),
+        ]);
     } else {
-        const { deleteField } = await import('firebase/firestore');
-        await setDoc(userRef, { role: deleteField() }, { merge: true });
+        await Promise.all([
+            setDoc(userRef, { role: deleteField() }, { merge: true }),
+            setDoc(publicUserRef, { role: deleteField() }, { merge: true }),
+        ]);
     }
 };
 
@@ -51,9 +58,22 @@ export const syncPublicUser = async (user: User): Promise<void> => {
     const publicUser: PublicUser = {
         id: user.id,
         name: user.name,
-        surname: user.surname
+        surname: user.surname,
+        ...(user.role ? { role: user.role } : {}),
     };
     await setDoc(doc(db, 'publicUsers', user.id), publicUser);
+};
+
+/** Self-heal: allinea il ruolo in publicUsers a quello in users, per chi è già disallineato (admin only) */
+export const syncPublicUserRoles = async (): Promise<void> => {
+    const [allUsers, allPublic] = await Promise.all([getAllUsers(), getPublicUsers()]);
+    const publicById = new Map(allPublic.map(p => [p.id, p]));
+    const mismatched = allUsers.filter(u => publicById.get(u.id)?.role !== u.role);
+    await Promise.all(
+        mismatched.map(u =>
+            setDoc(doc(db, 'publicUsers', u.id), { role: u.role ?? deleteField() }, { merge: true })
+        )
+    );
 };
 
 /** Delete a user and all their data */

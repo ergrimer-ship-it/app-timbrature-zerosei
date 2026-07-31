@@ -80,7 +80,8 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
             setLeaves(lv);
             setLeaveRequests(reqs);
             setAllAssignedShifts(assignedShifts);
-            setColleagues(users.filter(u => u.id !== selectedUser.id));
+            // Solo colleghi con lo stesso ruolo possono scambiarsi un turno
+            setColleagues(users.filter(u => u.id !== selectedUser.id && u.role === selectedUser.role));
             setSwapRequests(swapReqs);
         } finally { setLoading(false); }
     };

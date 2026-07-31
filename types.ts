@@ -24,6 +24,7 @@ export interface PublicUser {
   id: string;
   name: string;
   surname: string;
+  role?: UserRole;
 }
 
 export type ShiftType = 'standard' | 'cassa' | 'macchina_propria' | 'macchina_pizzeria';

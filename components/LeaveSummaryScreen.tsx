@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getAllUsers, getFutureLeaves, getAllLeaveRequests, approveLeaveRequest, rejectLeaveRequest } from '../services/dbService';
-import type { User, FutureLeave, LeaveRequest } from '../types';
+import { getAllUsers, getFutureLeaves, getAllLeaveRequests, approveLeaveRequest, rejectLeaveRequest, getAllShiftSwapRequests } from '../services/dbService';
+import type { User, FutureLeave, LeaveRequest, ShiftSwapRequest } from '../types';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
 
 interface LeaveItem { user: User; leave: FutureLeave; }
 
 export const LeaveSummaryScreen: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'requests' | 'confirmed'>('requests');
+    const [activeTab, setActiveTab] = useState<'requests' | 'confirmed' | 'swaps'>('requests');
 
     // Confirmed leaves state
     const [currentDate, setCurrentDate] = useState(() => {
@@ -19,18 +19,27 @@ export const LeaveSummaryScreen: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    // Cambi turno conclusi
+    const [completedSwaps, setCompletedSwaps] = useState<ShiftSwapRequest[]>([]);
+
     useEffect(() => {
         const load = async () => {
             setIsLoading(true);
             try {
                 const allUsers = await getAllUsers();
                 setUsers(allUsers);
-                const [leavesArrays, reqs] = await Promise.all([
+                const [leavesArrays, reqs, swaps] = await Promise.all([
                     Promise.all(allUsers.map(async u => (await getFutureLeaves(u.id)).map(l => ({ user: u, leave: l })))),
                     getAllLeaveRequests(),
+                    getAllShiftSwapRequests(),
                 ]);
                 setAllLeaves(leavesArrays.flat());
                 setRequests(reqs);
+                setCompletedSwaps(
+                    swaps
+                        .filter(s => s.status === 'approved')
+                        .sort((a, b) => new Date(b.reviewedAt ?? b.requestedAt).getTime() - new Date(a.reviewedAt ?? a.requestedAt).getTime())
+                );
             } finally { setIsLoading(false); }
         };
         load();
@@ -69,6 +78,10 @@ export const LeaveSummaryScreen: React.FC = () => {
     };
 
     const fmtDate = (s: string) => new Date(s).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const fmtSwapShift = (date: string, start: string, end?: string) => {
+        const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+        return `${dateLabel} ${start}${end ? `–${end}` : ''}`;
+    };
 
     const filteredLeaves = useMemo(() => {
         const y = currentDate.getFullYear(); const mo = currentDate.getMonth();
@@ -104,6 +117,10 @@ export const LeaveSummaryScreen: React.FC = () => {
                     <button onClick={() => setActiveTab('confirmed')}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all ${activeTab === 'confirmed' ? 'bg-white text-blue-700' : 'bg-white/15 text-blue-100 hover:bg-white/25'}`}>
                         ✅ Confermati
+                    </button>
+                    <button onClick={() => setActiveTab('swaps')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all ${activeTab === 'swaps' ? 'bg-white text-blue-700' : 'bg-white/15 text-blue-100 hover:bg-white/25'}`}>
+                        🔄 Cambi Turno
                     </button>
                 </div>
             </div>
@@ -240,6 +257,47 @@ export const LeaveSummaryScreen: React.FC = () => {
                 <p className="text-xs text-slate-400 text-center">
                     I permessi approvati appaiono anche nella scheda del singolo dipendente → tab "Note e Richieste"
                 </p>
+            )}
+
+            {/* TAB: Cambi Turno */}
+            {activeTab === 'swaps' && (
+                <div className="glass-panel rounded-2xl overflow-hidden">
+                    {completedSwaps.length > 0 ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-100">
+                                        <th className="p-4 font-semibold">Dipendenti</th>
+                                        <th className="p-4 font-semibold">Turni scambiati</th>
+                                        <th className="p-4 font-semibold">Concluso il</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {completedSwaps.map(swap => (
+                                        <tr key={swap.id} className="hover:bg-blue-50/40 transition-colors">
+                                            <td className="p-4 text-slate-700 text-sm font-medium">
+                                                {swap.requesterName} ↔ {swap.targetUserName}
+                                            </td>
+                                            <td className="p-4 text-slate-600 text-sm">
+                                                {fmtSwapShift(swap.requesterShiftDate, swap.requesterShiftStart, swap.requesterShiftEnd)}
+                                                {' ↔ '}
+                                                {fmtSwapShift(swap.targetShiftDate, swap.targetShiftStart, swap.targetShiftEnd)}
+                                            </td>
+                                            <td className="p-4 text-slate-500 text-sm">
+                                                {swap.reviewedAt ? fmtDate(swap.reviewedAt) : '—'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="py-16 text-center">
+                            <div className="text-5xl mb-3">🔄</div>
+                            <p className="text-slate-500">Nessun cambio turno concluso finora</p>
+                        </div>
+                    )}
+                </div>
             )}
         </div>
     );
