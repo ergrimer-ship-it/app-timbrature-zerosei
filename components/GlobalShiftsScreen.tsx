@@ -150,7 +150,9 @@ export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assigned
                 <div className="flex items-start justify-between mb-5">
                     <div>
                         <h1 className="text-2xl font-bold">📅 Panoramica Turni</h1>
-                        <p className="text-blue-200 text-sm mt-1">Clicca su un turno per modificarlo</p>
+                        {user.isAdmin && (
+                            <p className="text-blue-200 text-sm mt-1">Clicca su un turno per modificarlo</p>
+                        )}
                     </div>
                     <span className="text-xs bg-white/15 text-white font-semibold px-3 py-1 rounded-full">
                         {weekDates[0].getDate()} – {weekDates[6].getDate()} {weekDates[0].toLocaleDateString('it-IT', { month: 'short' })}
@@ -214,7 +216,7 @@ export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assigned
                 shifts={allShifts}
                 assignedShifts={assignedShifts}
                 users={users}
-                onShiftClick={handleShiftClick}
+                onShiftClick={user.isAdmin ? handleShiftClick : undefined}
                 weekDates={weekDates}
                 onChangeWeek={changeWeek}
             />

@@ -174,7 +174,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                                         <div
                                             key={user.id}
                                             onClick={() => onShiftClick?.(user, actual, assigned)}
-                                            className={`flex items-center gap-3 px-4 py-3 border-l-4 ${borderColor} ${rowBg} cursor-pointer hover:brightness-95 transition-all`}
+                                            className={`flex items-center gap-3 px-4 py-3 border-l-4 ${borderColor} ${rowBg} transition-all ${onShiftClick ? 'cursor-pointer hover:brightness-95' : ''}`}
                                         >
                                             {/* Avatar */}
                                             <div className={`w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-xs font-bold ${
