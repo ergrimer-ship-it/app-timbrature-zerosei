@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { User, SalaryAdvance, FutureLeave, LeaveRequest, AssignedShift, PublicUser, ShiftSwapRequest } from '../types';
-import { getSalaryAdvances, addSalaryAdvance, deleteSalaryAdvance, getFutureLeaves, addFutureLeave, deleteFutureLeave, addLeaveRequest, getUserLeaveRequests, getAssignedShifts, getPublicUsers, addShiftSwapRequest, getUserShiftSwapRequests } from '../services/dbService';
+import { getSalaryAdvances, addSalaryAdvance, deleteSalaryAdvance, getFutureLeaves, addFutureLeave, deleteFutureLeave, addLeaveRequest, getUserLeaveRequests, getAssignedShifts, getPublicUsers, addShiftSwapRequest, getUserShiftSwapRequests, approveShiftSwap, rejectShiftSwap } from '../services/dbService';
 
 interface EmployeeNotesScreenProps {
     selectedUser: User;
@@ -185,6 +185,26 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
         } catch {
             alert('Errore durante l\'invio della richiesta di cambio turno.');
         } finally { setSwapSending(false); }
+    };
+
+    const [swapReplyingId, setSwapReplyingId] = useState<string | null>(null);
+
+    const handleAcceptSwap = async (req: ShiftSwapRequest) => {
+        setSwapReplyingId(req.id);
+        try {
+            await approveShiftSwap(req);
+            setSwapRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'approved', reviewedAt: new Date().toISOString() } : r));
+        } catch {
+            alert('Errore durante l\'accettazione del cambio turno.');
+        } finally { setSwapReplyingId(null); }
+    };
+
+    const handleRejectSwap = async (req: ShiftSwapRequest) => {
+        setSwapReplyingId(req.id);
+        try {
+            await rejectShiftSwap(req);
+            setSwapRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected', reviewedAt: new Date().toISOString() } : r));
+        } finally { setSwapReplyingId(null); }
     };
 
     const fmtCurrency = (n: number) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n);
@@ -478,6 +498,7 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
                                 const other = isRequester
                                     ? fmtAssignedShift(req.targetShiftDate, req.targetShiftStart, req.targetShiftEnd)
                                     : fmtAssignedShift(req.requesterShiftDate, req.requesterShiftStart, req.requesterShiftEnd);
+                                const canReply = !isRequester && req.status === 'pending';
                                 return (
                                     <div key={req.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
                                         <div className="flex items-start justify-between gap-2">
@@ -492,10 +513,24 @@ export const EmployeeNotesScreen: React.FC<EmployeeNotesScreenProps> = ({ select
                                                     Inviata {new Date(req.requestedAt).toLocaleDateString('it-IT')}
                                                 </p>
                                             </div>
-                                            <span className={`text-xs font-bold px-2 py-1 rounded-full border flex-shrink-0 ${statusStyle}`}>
-                                                {statusLabel}
-                                            </span>
+                                            {!canReply && (
+                                                <span className={`text-xs font-bold px-2 py-1 rounded-full border flex-shrink-0 ${statusStyle}`}>
+                                                    {statusLabel}
+                                                </span>
+                                            )}
                                         </div>
+                                        {canReply && (
+                                            <div className="flex items-center gap-2 mt-3">
+                                                <button onClick={() => handleAcceptSwap(req)} disabled={swapReplyingId === req.id}
+                                                    className="flex-1 py-2 rounded-lg text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50">
+                                                    ✅ Accetta
+                                                </button>
+                                                <button onClick={() => handleRejectSwap(req)} disabled={swapReplyingId === req.id}
+                                                    className="flex-1 py-2 rounded-lg text-xs font-bold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50">
+                                                    ❌ Rifiuta
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}

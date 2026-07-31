@@ -111,8 +111,16 @@ service cloud.firestore {
       allow create: if request.auth != null &&
         request.resource.data.requesterId == request.auth.uid &&
         request.resource.data.status == 'pending';
-      // Solo admin può aggiornare (approvare/rifiutare)
-      allow update, delete: if isAdmin();
+      // Admin sempre; il collega bersaglio può accettare/rifiutare la propria richiesta pending,
+      // toccando solo i campi di stato (non può alterare turni/nomi/richiedente)
+      allow update: if isAdmin() || (
+        request.auth != null &&
+        resource.data.targetUserId == request.auth.uid &&
+        resource.data.status == 'pending' &&
+        request.resource.data.status in ['approved', 'rejected'] &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt'])
+      );
+      allow delete: if isAdmin();
     }
   }
 }

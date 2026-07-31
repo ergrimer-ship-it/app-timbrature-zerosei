@@ -60,9 +60,18 @@ export const GlobalShiftsScreen: React.FC<GlobalShiftsScreenProps> = ({ assigned
     const handleApproveSwap = async (req: ShiftSwapRequest) => {
         setSwapActionId(req.id);
         try {
-            const updatedAssigned = await approveShiftSwap(req);
+            await approveShiftSwap(req);
             setSwapRequests(prev => prev.filter(r => r.id !== req.id));
-            onShiftsSwapped?.(updatedAssigned);
+            // Anteprima ottimistica locale: lo scambio effettivo sul roster viene applicato
+            // lato server dalla Cloud Function onShiftSwapRequestUpdated pochi istanti dopo.
+            const requesterIdx = assignedShifts.findIndex(s => s.id === req.requesterShiftId);
+            const targetIdx = assignedShifts.findIndex(s => s.id === req.targetShiftId);
+            if (requesterIdx !== -1 && targetIdx !== -1) {
+                const updated = [...assignedShifts];
+                updated[requesterIdx] = { ...updated[requesterIdx], userId: req.targetUserId };
+                updated[targetIdx] = { ...updated[targetIdx], userId: req.requesterId };
+                onShiftsSwapped?.(updated);
+            }
         } catch (err: any) {
             alert(err?.message || 'Errore durante l\'approvazione dello scambio.');
         } finally {

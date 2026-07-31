@@ -247,36 +247,77 @@ export const onLeaveRequestUpdated = onDocumentUpdated(
     }
 );
 
-// Notifica admin quando un dipendente propone un cambio turno
+// Notifica il collega bersaglio quando un dipendente propone un cambio turno (deve accettare/rifiutare lui)
 export const onShiftSwapRequestCreated = onDocumentCreated(
     { document: 'shiftSwapRequests/{requestId}', region: LOCATION },
     async (event) => {
-        const data = event.data?.data() as { requesterName?: string; targetUserName?: string } | undefined;
-        if (!data) return;
-        await sendPushToAllAdmins(
-            '🔄 Nuovo Cambio Turno',
-            `${data.requesterName ?? 'Un dipendente'} vuole scambiare un turno con ${data.targetUserName ?? 'un collega'}`
+        const data = event.data?.data() as { requesterName?: string; targetUserId?: string } | undefined;
+        if (!data?.targetUserId) return;
+        await sendPush(
+            data.targetUserId,
+            '🔄 Proposta di Cambio Turno',
+            `${data.requesterName ?? 'Un collega'} ti propone di scambiare un turno`
         );
     }
 );
 
-// Notifica entrambi i dipendenti coinvolti quando admin approva o rifiuta il cambio turno
+interface ShiftSwapRequestData {
+    status?: string;
+    requesterId?: string;
+    requesterName?: string;
+    requesterShiftId?: string;
+    targetUserId?: string;
+    targetUserName?: string;
+    targetShiftId?: string;
+}
+
+// Quando la richiesta viene accettata o rifiutata (dal collega bersaglio o dall'admin):
+// esegue davvero lo scambio sul roster (assignedShifts) e notifica gli interessati.
 export const onShiftSwapRequestUpdated = onDocumentUpdated(
     { document: 'shiftSwapRequests/{requestId}', region: LOCATION },
     async (event) => {
-        const before = event.data?.before?.data() as { status?: string } | undefined;
-        const after  = event.data?.after?.data()  as { status?: string; requesterId?: string; targetUserId?: string } | undefined;
+        const before = event.data?.before?.data() as ShiftSwapRequestData | undefined;
+        const after  = event.data?.after?.data()  as ShiftSwapRequestData | undefined;
+        const requestId = event.params.requestId;
         if (!before || !after) return;
         if (before.status === after.status) return;
         if (!after.requesterId || !after.targetUserId) return;
         if (after.status !== 'approved' && after.status !== 'rejected') return;
-        const title = after.status === 'approved' ? '✅ Cambio Turno Approvato' : '❌ Cambio Turno Rifiutato';
-        const body = after.status === 'approved'
-            ? 'Il tuo cambio turno è stato approvato!'
-            : 'Il tuo cambio turno è stato rifiutato.';
-        await Promise.all([
-            sendPush(after.requesterId, title, body),
-            sendPush(after.targetUserId, title, body),
-        ]);
+
+        if (after.status === 'approved') {
+            if (after.requesterShiftId && after.targetShiftId) {
+                const rosterRef = db.doc('assignedShifts/all');
+                const rosterSnap = await rosterRef.get();
+                const shifts: AssignedShift[] = rosterSnap.data()?.shifts ?? [];
+                const requesterIdx = shifts.findIndex(s => s.id === after.requesterShiftId);
+                const targetIdx = shifts.findIndex(s => s.id === after.targetShiftId);
+                if (requesterIdx !== -1 && targetIdx !== -1) {
+                    shifts[requesterIdx] = { ...shifts[requesterIdx], userId: after.targetUserId };
+                    shifts[targetIdx] = { ...shifts[targetIdx], userId: after.requesterId };
+                    await rosterRef.set({ shifts });
+
+                    // Auto-rifiuta eventuali altre richieste pending che puntano a uno dei due turni appena scambiati
+                    const [asRequester, asTarget] = await Promise.all([
+                        db.collection('shiftSwapRequests')
+                            .where('requesterShiftId', 'in', [after.requesterShiftId, after.targetShiftId])
+                            .where('status', '==', 'pending').get(),
+                        db.collection('shiftSwapRequests')
+                            .where('targetShiftId', 'in', [after.requesterShiftId, after.targetShiftId])
+                            .where('status', '==', 'pending').get(),
+                    ]);
+                    const stale = new Map<string, FirebaseFirestore.DocumentSnapshot>();
+                    [...asRequester.docs, ...asTarget.docs].forEach(d => { if (d.id !== requestId) stale.set(d.id, d); });
+                    await Promise.all([...stale.values()].map(d =>
+                        d.ref.set({ ...d.data(), status: 'rejected', reviewedAt: new Date().toISOString() })
+                    ));
+                }
+            }
+            await Promise.all([
+                sendPush(after.requesterId, '✅ Cambio Turno Accettato', `${after.targetUserName ?? 'Il collega'} ha accettato lo scambio!`),
+                sendPushToAllAdmins('🔄 Cambio Turno Effettuato', `${after.requesterName ?? 'Un dipendente'} e ${after.targetUserName ?? 'un collega'} hanno scambiato un turno`),
+            ]);
+        } else {
+            await sendPush(after.requesterId, '❌ Cambio Turno Rifiutato', `${after.targetUserName ?? 'Il collega'} ha rifiutato lo scambio.`);
+        }
     }
 );
