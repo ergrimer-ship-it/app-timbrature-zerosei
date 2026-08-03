@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onShiftSwapRequestUpdated = exports.onShiftSwapRequestCreated = exports.debugBackfillPublicUserRoles = exports.onLeaveRequestUpdated = exports.onLeaveRequestCreated = exports.onNewNotification = exports.handleShiftReminder = exports.scheduleDailyShiftTasks = exports.onAssignedShiftsUpdated = void 0;
+exports.onShiftSwapRequestUpdated = exports.onShiftSwapRequestCreated = exports.onLeaveRequestUpdated = exports.onLeaveRequestCreated = exports.onNewNotification = exports.handleShiftReminder = exports.scheduleDailyShiftTasks = exports.onAssignedShiftsUpdated = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const https_1 = require("firebase-functions/v2/https");
@@ -197,32 +197,36 @@ exports.onLeaveRequestUpdated = (0, firestore_1.onDocumentUpdated)({ document: '
         await sendPush(after.userId, '❌ Permesso Rifiutato', 'La tua richiesta di permesso è stata rifiutata.');
     }
 });
-// TEMP DEBUG — da rimuovere: backfill una tantum del ruolo mancante in publicUsers
-exports.debugBackfillPublicUserRoles = (0, https_1.onRequest)({ region: LOCATION, invoker: 'public' }, async (_req, res) => {
-    const [usersSnap, publicSnap] = await Promise.all([
-        db.collection('users').get(),
-        db.collection('publicUsers').get(),
-    ]);
-    const publicById = new Map(publicSnap.docs.map(d => [d.id, d.data()]));
-    const fixed = [];
-    await Promise.all(usersSnap.docs.map(async (d) => {
-        var _a, _b;
-        const role = (_a = d.data()) === null || _a === void 0 ? void 0 : _a.role;
-        const current = (_b = publicById.get(d.id)) === null || _b === void 0 ? void 0 : _b.role;
-        if (current !== role) {
-            await db.doc(`publicUsers/${d.id}`).set({ role: role !== null && role !== void 0 ? role : admin.firestore.FieldValue.delete() }, { merge: true });
-            fixed.push(d.id);
-        }
-    }));
-    res.json({ fixed });
-});
-// Notifica il collega bersaglio quando un dipendente propone un cambio turno (deve accettare/rifiutare lui)
+// Notifica il collega bersaglio quando un dipendente propone un cambio turno (deve accettare/rifiutare lui).
+// Controlla anche qui (con privilegi admin) che nessuno dei due turni sia già coinvolto in un'altra
+// richiesta pending/approved: un dipendente normale non può leggere le richieste altrui per farlo lato client.
 exports.onShiftSwapRequestCreated = (0, firestore_1.onDocumentCreated)({ document: 'shiftSwapRequests/{requestId}', region: LOCATION }, async (event) => {
-    var _a, _b;
-    const data = (_a = event.data) === null || _a === void 0 ? void 0 : _a.data();
-    if (!(data === null || data === void 0 ? void 0 : data.targetUserId))
+    var _a;
+    const snap = event.data;
+    const data = snap === null || snap === void 0 ? void 0 : snap.data();
+    if (!(data === null || data === void 0 ? void 0 : data.targetUserId) || !snap)
         return;
-    await sendPush(data.targetUserId, '🔄 Proposta di Cambio Turno', `${(_b = data.requesterName) !== null && _b !== void 0 ? _b : 'Un collega'} ti propone di scambiare un turno`);
+    if (data.requesterShiftId && data.targetShiftId) {
+        const requestId = event.params.requestId;
+        const [asRequester, asTarget] = await Promise.all([
+            db.collection('shiftSwapRequests')
+                .where('requesterShiftId', 'in', [data.requesterShiftId, data.targetShiftId]).get(),
+            db.collection('shiftSwapRequests')
+                .where('targetShiftId', 'in', [data.requesterShiftId, data.targetShiftId]).get(),
+        ]);
+        const conflict = [...asRequester.docs, ...asTarget.docs].some(d => {
+            var _a;
+            if (d.id === requestId)
+                return false;
+            const status = (_a = d.data()) === null || _a === void 0 ? void 0 : _a.status;
+            return status === 'pending' || status === 'approved';
+        });
+        if (conflict) {
+            await snap.ref.set({ status: 'rejected', reviewedAt: new Date().toISOString() }, { merge: true });
+            return;
+        }
+    }
+    await sendPush(data.targetUserId, '🔄 Proposta di Cambio Turno', `${(_a = data.requesterName) !== null && _a !== void 0 ? _a : 'Un collega'} ti propone di scambiare un turno`);
 });
 // Quando la richiesta viene accettata o rifiutata (dal collega bersaglio o dall'admin):
 // esegue davvero lo scambio sul roster (assignedShifts) e notifica gli interessati.

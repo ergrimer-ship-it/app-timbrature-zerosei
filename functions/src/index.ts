@@ -247,12 +247,40 @@ export const onLeaveRequestUpdated = onDocumentUpdated(
     }
 );
 
-// Notifica il collega bersaglio quando un dipendente propone un cambio turno (deve accettare/rifiutare lui)
+// Notifica il collega bersaglio quando un dipendente propone un cambio turno (deve accettare/rifiutare lui).
+// Controlla anche qui (con privilegi admin) che nessuno dei due turni sia già coinvolto in un'altra
+// richiesta pending/approved: un dipendente normale non può leggere le richieste altrui per farlo lato client.
 export const onShiftSwapRequestCreated = onDocumentCreated(
     { document: 'shiftSwapRequests/{requestId}', region: LOCATION },
     async (event) => {
-        const data = event.data?.data() as { requesterName?: string; targetUserId?: string } | undefined;
-        if (!data?.targetUserId) return;
+        const snap = event.data;
+        const data = snap?.data() as {
+            requesterName?: string;
+            targetUserId?: string;
+            requesterShiftId?: string;
+            targetShiftId?: string;
+        } | undefined;
+        if (!data?.targetUserId || !snap) return;
+
+        if (data.requesterShiftId && data.targetShiftId) {
+            const requestId = event.params.requestId;
+            const [asRequester, asTarget] = await Promise.all([
+                db.collection('shiftSwapRequests')
+                    .where('requesterShiftId', 'in', [data.requesterShiftId, data.targetShiftId]).get(),
+                db.collection('shiftSwapRequests')
+                    .where('targetShiftId', 'in', [data.requesterShiftId, data.targetShiftId]).get(),
+            ]);
+            const conflict = [...asRequester.docs, ...asTarget.docs].some(d => {
+                if (d.id === requestId) return false;
+                const status = d.data()?.status;
+                return status === 'pending' || status === 'approved';
+            });
+            if (conflict) {
+                await snap.ref.set({ status: 'rejected', reviewedAt: new Date().toISOString() }, { merge: true });
+                return;
+            }
+        }
+
         await sendPush(
             data.targetUserId,
             '🔄 Proposta di Cambio Turno',
