@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onShiftSwapRequestUpdated = exports.onShiftSwapRequestCreated = exports.debugDumpSwapRequests = exports.onLeaveRequestUpdated = exports.onLeaveRequestCreated = exports.onNewNotification = exports.handleShiftReminder = exports.scheduleDailyShiftTasks = exports.onAssignedShiftsUpdated = void 0;
+exports.onShiftSwapRequestUpdated = exports.onShiftSwapRequestCreated = exports.debugBackfillPublicUserRoles = exports.onLeaveRequestUpdated = exports.onLeaveRequestCreated = exports.onNewNotification = exports.handleShiftReminder = exports.scheduleDailyShiftTasks = exports.onAssignedShiftsUpdated = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const https_1 = require("firebase-functions/v2/https");
@@ -197,16 +197,24 @@ exports.onLeaveRequestUpdated = (0, firestore_1.onDocumentUpdated)({ document: '
         await sendPush(after.userId, '❌ Permesso Rifiutato', 'La tua richiesta di permesso è stata rifiutata.');
     }
 });
-// TEMP DEBUG — da rimuovere: dump/pulizia grezza di shiftSwapRequests per il duplicato in Cambi Turno
-exports.debugDumpSwapRequests = (0, https_1.onRequest)({ region: LOCATION, invoker: 'public' }, async (req, res) => {
-    const deleteId = req.query.delete;
-    if (deleteId) {
-        await db.doc(`shiftSwapRequests/${deleteId}`).delete();
-        res.json({ deleted: deleteId });
-        return;
-    }
-    const snap = await db.collection('shiftSwapRequests').get();
-    res.json(snap.docs.map(d => (Object.assign({ docId: d.id }, d.data()))));
+// TEMP DEBUG — da rimuovere: backfill una tantum del ruolo mancante in publicUsers
+exports.debugBackfillPublicUserRoles = (0, https_1.onRequest)({ region: LOCATION, invoker: 'public' }, async (_req, res) => {
+    const [usersSnap, publicSnap] = await Promise.all([
+        db.collection('users').get(),
+        db.collection('publicUsers').get(),
+    ]);
+    const publicById = new Map(publicSnap.docs.map(d => [d.id, d.data()]));
+    const fixed = [];
+    await Promise.all(usersSnap.docs.map(async (d) => {
+        var _a, _b;
+        const role = (_a = d.data()) === null || _a === void 0 ? void 0 : _a.role;
+        const current = (_b = publicById.get(d.id)) === null || _b === void 0 ? void 0 : _b.role;
+        if (current !== role) {
+            await db.doc(`publicUsers/${d.id}`).set({ role: role !== null && role !== void 0 ? role : admin.firestore.FieldValue.delete() }, { merge: true });
+            fixed.push(d.id);
+        }
+    }));
+    res.json({ fixed });
 });
 // Notifica il collega bersaglio quando un dipendente propone un cambio turno (deve accettare/rifiutare lui)
 exports.onShiftSwapRequestCreated = (0, firestore_1.onDocumentCreated)({ document: 'shiftSwapRequests/{requestId}', region: LOCATION }, async (event) => {

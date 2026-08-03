@@ -16,7 +16,7 @@ import { LeaveSummaryScreen } from './components/LeaveSummaryScreen';
 
 // Firebase services
 import { login, register, subscribeAuth, logout } from './authService';
-import { getAllUsers, deleteUser, getShifts, addShift, deleteShift, setActiveShift as setActiveShiftDb, getActiveShift as getActiveShiftDb, clearActiveShift as clearActiveShiftDb, saveAssignedShifts, getAssignedShifts, onActiveShiftChange } from './services/dbService';
+import { getAllUsers, deleteUser, getShifts, addShift, deleteShift, setActiveShift as setActiveShiftDb, getActiveShift as getActiveShiftDb, clearActiveShift as clearActiveShiftDb, saveAssignedShifts, getAssignedShifts, onActiveShiftChange, syncPublicUser } from './services/dbService';
 import { requestNotificationPermission, setupForegroundMessageListener } from './services/notificationService';
 import { createNotification } from './services/localNotificationService';
 import { scheduleShiftReminders, clearAllReminders } from './services/shiftReminderService';
@@ -66,6 +66,10 @@ const App: React.FC = () => {
         const unsubAuth = subscribeAuth(async (u) => {
             setUser(u);
             if (u) {
+                // Self-heal: mantiene publicUsers (nome/cognome/ruolo) allineato al proprio profilo
+                // ad ogni login/refresh, senza dipendere da un'azione dell'admin altrove.
+                syncPublicUser(u).catch(() => {});
+
                 // Setup FCM once per session (login or page refresh)
                 if (!fcmListenerActive.current) {
                     await requestNotificationPermission(u.id);
