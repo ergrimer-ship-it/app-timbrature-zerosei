@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import type { User, Shift, AssignedShift, UserRole } from '../types';
+import React, { useState, useEffect } from 'react';
+import type { User, Shift, AssignedShift, UserRole, SalaryAdvance, FutureLeave } from '../types';
 import { USER_ROLES } from '../types';
 import { Calendar } from './Calendar';
 import { EmployeeNotesScreen } from './EmployeeNotesScreen';
 import { UserShiftsView } from './UserShiftsView';
 import { ChevronLeftIcon, CalendarIcon, FileTextIcon, ClipboardListIcon } from './icons';
-import { getUserPassword, updateUserRole } from '../services/dbService';
+import { getUserPassword, updateUserRole, getSalaryAdvances, getFutureLeaves } from '../services/dbService';
 
 interface UserDetailScreenProps {
     selectedUser: User;
@@ -23,6 +23,13 @@ export const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ selectedUser
     const [loadingPassword, setLoadingPassword] = useState(false);
     const [currentRole, setCurrentRole] = useState<UserRole | undefined>(selectedUser.role);
     const [savingRole, setSavingRole] = useState(false);
+    const [salaryAdvances, setSalaryAdvances] = useState<SalaryAdvance[]>([]);
+    const [futureLeaves, setFutureLeaves] = useState<FutureLeave[]>([]);
+
+    useEffect(() => {
+        Promise.all([getSalaryAdvances(selectedUser.id), getFutureLeaves(selectedUser.id)])
+            .then(([adv, lv]) => { setSalaryAdvances(adv); setFutureLeaves(lv); });
+    }, [selectedUser.id]);
 
     const handleShowPassword = async () => {
         if (password !== null) { setPassword(null); return; }
@@ -115,7 +122,7 @@ export const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ selectedUser
             <main>
                 {activeTab === 'calendar' ? (
                     <div className="glass-panel rounded-2xl p-5">
-                        <Calendar shifts={userShifts} isAdminView={true} onUpdateShift={onUpdateShift} onDeleteShift={onDeleteShift} />
+                        <Calendar shifts={userShifts} isAdminView={true} onUpdateShift={onUpdateShift} onDeleteShift={onDeleteShift} salaryAdvances={salaryAdvances} futureLeaves={futureLeaves} />
                     </div>
                 ) : activeTab === 'shifts' ? (
                     <div className="glass-panel rounded-2xl p-5">

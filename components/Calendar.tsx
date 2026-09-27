@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import type { Shift } from '../types';
+import type { Shift, SalaryAdvance, FutureLeave } from '../types';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
 import { ShiftDetailModal } from './ShiftDetailModal';
 
@@ -8,11 +8,13 @@ interface CalendarProps {
     isAdminView?: boolean;
     onUpdateShift?: (updatedShift: Shift) => void;
     onDeleteShift?: (shiftId: string) => void;
+    salaryAdvances?: SalaryAdvance[];
+    futureLeaves?: FutureLeave[];
 }
 
 const WEEK_DAYS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
-export const Calendar: React.FC<CalendarProps> = ({ shifts, isAdminView = false, onUpdateShift, onDeleteShift }) => {
+export const Calendar: React.FC<CalendarProps> = ({ shifts, isAdminView = false, onUpdateShift, onDeleteShift, salaryAdvances = [], futureLeaves = [] }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
@@ -51,6 +53,7 @@ export const Calendar: React.FC<CalendarProps> = ({ shifts, isAdminView = false,
 
     const monthlyTotals = useMemo(() => {
         const t = { total: 0, standard: 0, cassa: 0, macchina_propria: 0, macchina_pizzeria: 0 };
+        const pay = { total: 0, standard: 0, cassa: 0, macchina_propria: 0, macchina_pizzeria: 0 };
         const y = currentDate.getFullYear();
         const mo = currentDate.getMonth();
         shifts.forEach(shift => {
@@ -60,10 +63,34 @@ export const Calendar: React.FC<CalendarProps> = ({ shifts, isAdminView = false,
                 t.total += ms;
                 const type = (shift.type ?? 'standard') as keyof typeof t;
                 if (type in t) t[type] += ms;
+                if (shift.hourlyRate !== undefined) {
+                    const amount = (ms / 3600000) * shift.hourlyRate;
+                    pay.total += amount;
+                    if (type in pay) pay[type] += amount;
+                }
             }
         });
-        return t;
+        return { hours: t, pay };
     }, [shifts, currentDate]);
+
+    const monthlyAdvances = useMemo(() => {
+        const y = currentDate.getFullYear();
+        const mo = currentDate.getMonth();
+        return salaryAdvances.filter(a => {
+            const d = new Date(a.date);
+            return d.getFullYear() === y && d.getMonth() === mo;
+        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }, [salaryAdvances, currentDate]);
+
+    const monthlyLeaves = useMemo(() => {
+        const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+        const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+        return futureLeaves.filter(l => {
+            const start = new Date(l.startDate);
+            const end = l.endDate ? new Date(l.endDate) : start;
+            return start <= monthEnd && end >= monthStart;
+        }).sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+    }, [futureLeaves, currentDate]);
 
     const fmt = (ms: number) => {
         if (ms <= 0) return '';
@@ -71,6 +98,10 @@ export const Calendar: React.FC<CalendarProps> = ({ shifts, isAdminView = false,
         const m = Math.floor((ms % 3600000) / 60000);
         return `${h}h ${m.toString().padStart(2, '0')}m`;
     };
+
+    const fmtCurrency = (n: number) => n > 0 ? new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n) : '';
+    const fmtDate = (s: string) => new Date(s).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const fmtDateRange = (start: string, end?: string) => end && end !== start ? `${fmtDate(start)} – ${fmtDate(end)}` : fmtDate(start);
 
     const handleDayClick = (date: Date) => {
         const key = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
@@ -98,32 +129,47 @@ export const Calendar: React.FC<CalendarProps> = ({ shifts, isAdminView = false,
             <div className="mb-4 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
                 <div className="text-center mb-2">
                     <p className="text-xs font-semibold text-blue-500 uppercase tracking-wider mb-1">Ore Totali Mese</p>
-                    <p className="text-2xl font-bold text-blue-700">{fmt(monthlyTotals.total) || '—'}</p>
+                    <p className="text-2xl font-bold text-blue-700">{fmt(monthlyTotals.hours.total) || '—'}</p>
+                    {monthlyTotals.pay.total > 0 && (
+                        <p className="text-sm font-bold text-emerald-600 mt-0.5">{fmtCurrency(monthlyTotals.pay.total)}</p>
+                    )}
                 </div>
-                {monthlyTotals.total > 0 && (
+                {monthlyTotals.hours.total > 0 && (
                     <div className="mt-3 pt-3 border-t border-blue-200 space-y-1.5 text-sm">
-                        {monthlyTotals.standard > 0 && (
+                        {monthlyTotals.hours.standard > 0 && (
                             <div className="flex justify-between text-slate-600">
                                 <span>Standard</span>
-                                <span className="font-mono font-semibold text-slate-700">{fmt(monthlyTotals.standard)}</span>
+                                <span className="font-mono font-semibold text-slate-700">
+                                    {fmt(monthlyTotals.hours.standard)}
+                                    {monthlyTotals.pay.standard > 0 && <span className="text-emerald-600 ml-1.5">{fmtCurrency(monthlyTotals.pay.standard)}</span>}
+                                </span>
                             </div>
                         )}
-                        {monthlyTotals.cassa > 0 && (
+                        {monthlyTotals.hours.cassa > 0 && (
                             <div className="flex justify-between text-slate-600">
                                 <span>Cassa</span>
-                                <span className="font-mono font-semibold text-slate-700">{fmt(monthlyTotals.cassa)}</span>
+                                <span className="font-mono font-semibold text-slate-700">
+                                    {fmt(monthlyTotals.hours.cassa)}
+                                    {monthlyTotals.pay.cassa > 0 && <span className="text-emerald-600 ml-1.5">{fmtCurrency(monthlyTotals.pay.cassa)}</span>}
+                                </span>
                             </div>
                         )}
-                        {monthlyTotals.macchina_propria > 0 && (
+                        {monthlyTotals.hours.macchina_propria > 0 && (
                             <div className="flex justify-between text-slate-600">
                                 <span>Macchina Propria</span>
-                                <span className="font-mono font-semibold text-slate-700">{fmt(monthlyTotals.macchina_propria)}</span>
+                                <span className="font-mono font-semibold text-slate-700">
+                                    {fmt(monthlyTotals.hours.macchina_propria)}
+                                    {monthlyTotals.pay.macchina_propria > 0 && <span className="text-emerald-600 ml-1.5">{fmtCurrency(monthlyTotals.pay.macchina_propria)}</span>}
+                                </span>
                             </div>
                         )}
-                        {monthlyTotals.macchina_pizzeria > 0 && (
+                        {monthlyTotals.hours.macchina_pizzeria > 0 && (
                             <div className="flex justify-between text-slate-600">
                                 <span>Macchina Pizzeria</span>
-                                <span className="font-mono font-semibold text-slate-700">{fmt(monthlyTotals.macchina_pizzeria)}</span>
+                                <span className="font-mono font-semibold text-slate-700">
+                                    {fmt(monthlyTotals.hours.macchina_pizzeria)}
+                                    {monthlyTotals.pay.macchina_pizzeria > 0 && <span className="text-emerald-600 ml-1.5">{fmtCurrency(monthlyTotals.pay.macchina_pizzeria)}</span>}
+                                </span>
                             </div>
                         )}
                     </div>
@@ -168,6 +214,40 @@ export const Calendar: React.FC<CalendarProps> = ({ shifts, isAdminView = false,
                     );
                 })}
             </div>
+
+            {/* Riepilogo mese: anticipi e permessi/ferie */}
+            {(monthlyAdvances.length > 0 || monthlyLeaves.length > 0) && (
+                <div className="mt-4 space-y-3">
+                    {monthlyAdvances.length > 0 && (
+                        <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                            <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-2">💶 Anticipi del mese</p>
+                            <div className="space-y-1.5">
+                                {monthlyAdvances.map(a => (
+                                    <div key={a.id} className="flex items-center justify-between text-sm">
+                                        <div>
+                                            <span className="text-slate-600">{fmtDate(a.date)}</span>
+                                            {a.notes && <span className="text-slate-400 italic ml-2">"{a.notes}"</span>}
+                                        </div>
+                                        <span className="font-mono font-semibold text-emerald-700">{fmtCurrency(a.amount)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    {monthlyLeaves.length > 0 && (
+                        <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl">
+                            <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-2">🏖️ Permessi/Ferie del mese</p>
+                            <div className="space-y-1.5">
+                                {monthlyLeaves.map(l => (
+                                    <div key={l.id} className="text-sm text-slate-600">
+                                        {fmtDateRange(l.startDate, l.endDate)}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {selectedDate && (
                 <ShiftDetailModal

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import type { User, Shift, AssignedShift, ShiftType } from '../types';
+import type { User, Shift, AssignedShift, ShiftType, SalaryAdvance, FutureLeave } from '../types';
 import { Calendar } from './Calendar';
 import { formatTime, formatDuration, isSameDay, formatDate } from '../utils/date';
 import { UserShiftsView } from './UserShiftsView';
+import { getSalaryAdvances, getFutureLeaves } from '../services/dbService';
 
 interface DashboardScreenProps {
     user: User;
@@ -64,6 +65,13 @@ const ShiftTypeOption: React.FC<{ label: string; value: ShiftType; selected: boo
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, shifts, activeShift, assignedShifts, onClock }) => {
     const [selectedShiftType, setSelectedShiftType] = useState<ShiftType | null>(null);
     const [elapsed, setElapsed] = useState('');
+    const [salaryAdvances, setSalaryAdvances] = useState<SalaryAdvance[]>([]);
+    const [futureLeaves, setFutureLeaves] = useState<FutureLeave[]>([]);
+
+    useEffect(() => {
+        Promise.all([getSalaryAdvances(user.id), getFutureLeaves(user.id)])
+            .then(([adv, lv]) => { setSalaryAdvances(adv); setFutureLeaves(lv); });
+    }, [user.id]);
 
     useEffect(() => { if (!activeShift) setSelectedShiftType(null); }, [activeShift]);
 
@@ -216,7 +224,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, shifts, 
                 <div className="lg:col-span-2">
                     <div className="glass-panel rounded-2xl p-5 h-full">
                         <h3 className="font-bold text-slate-800 mb-4">📆 Calendario</h3>
-                        <Calendar shifts={shifts} />
+                        <Calendar shifts={shifts} salaryAdvances={salaryAdvances} futureLeaves={futureLeaves} />
                     </div>
                 </div>
             </div>

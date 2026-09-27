@@ -13,6 +13,7 @@ import { DocumentsScreen } from './components/DocumentsScreen';
 import { EmployeeNotesScreen } from './components/EmployeeNotesScreen';
 import { Layout } from './components/Layout';
 import { LeaveSummaryScreen } from './components/LeaveSummaryScreen';
+import { PayRatesScreen } from './components/PayRatesScreen';
 
 // Firebase services
 import { login, register, subscribeAuth, logout } from './authService';
@@ -247,7 +248,7 @@ const App: React.FC = () => {
             // Clocking OUT
             const completedShift: Shift = { ...activeShift, endTime: now.toISOString() };
             console.log('Clocking OUT - completedShift:', completedShift);
-            await addShift(user.id, completedShift);
+            await addShift(user.id, completedShift, user.role);
             await clearActiveShiftDb(user.id);
             setShifts(prev => [...prev, completedShift]);
             setActiveShift(null);
@@ -316,14 +317,14 @@ const App: React.FC = () => {
 
     const handleUpdateShift = useCallback(async (userId: string, updatedShift: Shift) => {
         // Update shift in Firestore
-        await addShift(userId, updatedShift);
+        await addShift(userId, updatedShift, users.find(u => u.id === userId)?.role);
 
         // If we are viewing this user, update the state to reflect changes
         if (selectedUser?.id === userId) {
             const userShifts = await getShifts(userId);
             setShifts(userShifts);
         }
-    }, [selectedUser]);
+    }, [selectedUser, users]);
 
     const handleDeleteShift = useCallback(async (userId: string, shiftId: string) => {
         try {
@@ -404,6 +405,8 @@ const App: React.FC = () => {
                 );
             case 'leaveSummary':
                 return <LeaveSummaryScreen />;
+            case 'payRates':
+                return <PayRatesScreen />;
             case 'userDetail':
                 return (
                     <UserDetailScreen

@@ -16,6 +16,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ user, currentSection, onNa
         { id: 'users',        label: 'Utenti',    icon: '👥' },
         { id: 'planner',      label: 'Turni',     icon: '📅' },
         { id: 'leaveSummary', label: 'Permessi',  icon: '🏖️' },
+        { id: 'payRates',     label: 'Tariffe',   icon: '💶' },
         { id: 'documents',    label: 'Documenti', icon: '📄' },
     ];
 

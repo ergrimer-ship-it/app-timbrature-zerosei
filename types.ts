@@ -35,6 +35,19 @@ export interface Shift {
   endTime: string | null;
   tags?: string[];
   type?: ShiftType; // Optional for backward compatibility
+  hourlyRate?: number; // €/ora, congelato quando il turno viene completato (endTime valorizzato)
+}
+
+// Fascia giorno per una regola tariffaria: 'all' = ogni giorno, 'weekday' = lun-ven, 'weekend' = sab-dom
+export type PayRateDayBracket = 'all' | 'weekday' | 'weekend';
+
+// Regola tariffaria: ruolo + tipo timbratura + fascia giorno → €/ora
+export interface PayRateRule {
+  id: string;
+  role: UserRole;
+  shiftType: ShiftType;
+  dayBracket: PayRateDayBracket;
+  rate: number; // €/ora
 }
 
 // fix: Added AssignedShift interface for the shift planner feature

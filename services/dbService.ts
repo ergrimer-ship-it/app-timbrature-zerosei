@@ -12,7 +12,7 @@ import {
     query,
     where,
 } from 'firebase/firestore';
-import type { User, Shift, PublicUser, AssignedShift, Document, SalaryAdvance, FutureLeave, LeaveRequest, ShiftSwapRequest } from '../types';
+import type { User, Shift, PublicUser, AssignedShift, Document, SalaryAdvance, FutureLeave, LeaveRequest, ShiftSwapRequest, PayRateRule, UserRole, ShiftType } from '../types';
 
 /** Get password for a user (admin only) — reads from adminPasswords collection */
 export const getUserPassword = async (userId: string): Promise<string | null> => {
@@ -109,10 +109,42 @@ export const getShifts = async (userId: string): Promise<Shift[]> => {
 };
 
 /** Add a shift for a user */
-export const addShift = async (userId: string, shift: Shift) => {
+/** Legge la tabella tariffe orarie corrente (config unica) */
+export const getPayRates = async (): Promise<PayRateRule[]> => {
+    const snap = await getDoc(doc(db, 'payRates', 'config'));
+    return snap.exists() ? (snap.data().rules ?? []) : [];
+};
+
+/** Salva la tabella tariffe orarie (admin only) */
+export const savePayRates = async (rules: PayRateRule[]): Promise<void> => {
+    await setDoc(doc(db, 'payRates', 'config'), { rules });
+};
+
+const getDayBracket = (iso: string): 'weekday' | 'weekend' => {
+    const day = new Date(iso).getDay(); // 0 = domenica, 6 = sabato
+    return (day === 0 || day === 6) ? 'weekend' : 'weekday';
+};
+
+/** Trova la tariffa applicabile per ruolo + tipo timbratura + giorno del turno */
+export const findPayRate = (rules: PayRateRule[], role?: UserRole, type?: ShiftType, startTime?: string): number | undefined => {
+    if (!role || !type || !startTime) return undefined;
+    const bracket = getDayBracket(startTime);
+    return rules.find(r => r.role === role && r.shiftType === type && (r.dayBracket === 'all' || r.dayBracket === bracket))?.rate;
+};
+
+// Congela la tariffa oraria in vigore sul turno quando questo viene completato (endTime valorizzato),
+// così cambiamenti futuri alla tabella tariffe non alterano turni già lavorati. Se il turno ha già
+// una tariffa (portata avanti da una modifica successiva dell'admin), non viene ricalcolata.
+export const addShift = async (userId: string, shift: Shift, role?: UserRole) => {
+    let finalShift = shift;
+    if (shift.endTime && shift.hourlyRate === undefined) {
+        const empRole = role ?? (await getDoc(doc(db, 'users', userId))).data()?.role as UserRole | undefined;
+        const rate = findPayRate(await getPayRates(), empRole, shift.type, shift.startTime);
+        if (rate !== undefined) finalShift = { ...shift, hourlyRate: rate };
+    }
     // Use shift.id as the document ID to ensure consistency
     const shiftRef = doc(db, 'users', userId, 'shifts', shift.id);
-    await setDoc(shiftRef, shift);
+    await setDoc(shiftRef, finalShift);
 };
 
 /** Delete a shift for a user */

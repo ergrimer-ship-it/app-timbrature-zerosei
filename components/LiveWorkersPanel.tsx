@@ -87,7 +87,7 @@ export const LiveWorkersPanel: React.FC<LiveWorkersPanelProps> = ({ assignedShif
     const handleSaveShift = async (updatedShift: Shift) => {
         if (!selectedUserForEdit) return;
         try {
-            await addShift(selectedUserForEdit.id, updatedShift);
+            await addShift(selectedUserForEdit.id, updatedShift, selectedUserForEdit.role);
             setAllShifts(prev => [
                 ...prev.filter(s => s.id !== updatedShift.id),
                 { ...updatedShift, userId: selectedUserForEdit.id }
