@@ -64,7 +64,10 @@ export const Calendar: React.FC<CalendarProps> = ({ shifts, isAdminView = false,
                 const type = (shift.type ?? 'standard') as keyof typeof t;
                 if (type in t) t[type] += ms;
                 if (shift.hourlyRate !== undefined) {
-                    const amount = (ms / 3600000) * shift.hourlyRate;
+                    // Tronca i secondi: la paga si calcola su ore e minuti interi, non al secondo,
+                    // per coincidere con un conto fatto a mano sulle ore visualizzate.
+                    const minutesFloored = Math.floor(ms / 60000);
+                    const amount = (minutesFloored / 60) * shift.hourlyRate;
                     pay.total += amount;
                     if (type in pay) pay[type] += amount;
                 }
