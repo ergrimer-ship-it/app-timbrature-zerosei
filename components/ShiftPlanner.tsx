@@ -37,7 +37,6 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
             const result: Record<string, FutureLeave[]> = {};
             await Promise.all(
                 allUsers
-                    .filter(u => !u.isAdmin)
                     .map(async u => { result[u.id] = await getFutureLeaves(u.id); })
             );
             setLeavesByUser(result);
@@ -79,7 +78,6 @@ export const ShiftPlanner: React.FC<ShiftPlannerProps> = ({ allUsers, assignedSh
         daysInMonth.forEach(day => {
             const dateStr = toDateKey(day);
             const users = allUsers.filter(u => {
-                if (u.isAdmin) return false;
                 return (leavesByUser[u.id] ?? []).some(l => {
                     const end = l.endDate ?? l.startDate;
                     return l.startDate <= dateStr && dateStr <= end;
